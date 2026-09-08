@@ -1,0 +1,166 @@
+export interface FastApiValidationItem {
+  readonly loc?: ReadonlyArray<unknown>;
+  readonly msg?: string;
+  readonly type?: string;
+}
+
+export interface FastApiErrorBody {
+  readonly detail?: string | ReadonlyArray<FastApiValidationItem>;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: string;
+  readonly raw: unknown;
+
+  constructor(status: number, detail: string, raw?: unknown) {
+    super(detail);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+    this.raw = raw;
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message: string, errCause?: unknown) {
+    super(message, errCause !== undefined ? { cause: errCause } : undefined);
+    this.name = "NetworkError";
+  }
+}
+
+function extractDetail(body: unknown): string {
+  if (typeof body === "string" && body.length > 0) {
+    return body;
+  }
+  if (body !== null && typeof body === "object") {
+    const detail = (body as { detail?: unknown }).detail;
+    if (typeof detail === "string" && detail.length > 0) {
+      return detail;
+    }
+    if (Array.isArray(detail)) {
+      const parts: string[] = [];
+      for (const item of detail) {
+        if (item !== null && typeof item === "object") {
+          const entry = item as FastApiValidationItem;
+          const loc = entry.loc;
+          const where =
+            Array.isArray(loc) && loc.length > 0
+              ? loc.map((segment) => String(segment)).join(".")
+              : "<root>";
+          const msg = typeof entry.msg === "string" ? entry.msg : String(item);
+          parts.push(`${where}: ${msg}`);
+        } else {
+          parts.push(String(item));
+        }
+      }
+      if (parts.length > 0) {
+        return parts.join("; ");
+      }
+    }
+  }
+  return "Ошибка запроса";
+}
+
+export function normalizeApiError(status: number, body: unknown): ApiError {
+  return new ApiError(status, extractDetail(body), body);
+}
+
+export type ErrorCategory =
+  | "network"
+  | "auth"
+  | "permission"
+  | "notfound"
+  | "validation"
+  | "server"
+  | "client"
+  | "unknown";
+
+export interface ErrorMapping {
+  readonly category: ErrorCategory;
+  readonly userMessage: string;
+  readonly shouldRetry: boolean;
+  readonly shouldLogout: boolean;
+}
+
+export const ERROR_MAPPINGS: Record<number, ErrorMapping> = {
+  400: {
+    category: "validation",
+    userMessage: "Невалидный запрос",
+    shouldRetry: false,
+    shouldLogout: false,
+  },
+  401: {
+    category: "auth",
+    userMessage: "Сессия истекла, войдите снова",
+    shouldRetry: false,
+    shouldLogout: true,
+  },
+  403: {
+    category: "permission",
+    userMessage: "Нет доступа",
+    shouldRetry: false,
+    shouldLogout: false,
+  },
+  404: {
+    category: "notfound",
+    userMessage: "Не найдено",
+    shouldRetry: false,
+    shouldLogout: false,
+  },
+  405: {
+    category: "client",
+    userMessage: "Сначала добавьте публичный ключ в настройках",
+    shouldRetry: false,
+    shouldLogout: false,
+  },
+  413: {
+    category: "validation",
+    userMessage: "Файл слишком большой (макс. 50 МБ)",
+    shouldRetry: false,
+    shouldLogout: false,
+  },
+  422: {
+    category: "validation",
+    userMessage: "Невалидные данные или подпись",
+    shouldRetry: false,
+    shouldLogout: false,
+  },
+  500: {
+    category: "server",
+    userMessage: "Ошибка сервера, попробуйте позже",
+    shouldRetry: true,
+    shouldLogout: false,
+  },
+};
+
+const FALLBACK_MAPPING: ErrorMapping = {
+  category: "unknown",
+  userMessage: "Неизвестная ошибка",
+  shouldRetry: false,
+  shouldLogout: false,
+};
+
+export function getErrorMapping(status: number): ErrorMapping {
+  return ERROR_MAPPINGS[status] ?? FALLBACK_MAPPING;
+}
+
+export function toUserMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    return ERROR_MAPPINGS[err.status]?.userMessage ?? err.detail;
+  }
+  if (err instanceof NetworkError) {
+    return "Нет связи с сервером";
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return "Неизвестная ошибка";
+}
+
+export function shouldLogout(err: unknown): boolean {
+  if (err instanceof ApiError) {
+    return getErrorMapping(err.status).shouldLogout;
+  }
+  return false;
+}

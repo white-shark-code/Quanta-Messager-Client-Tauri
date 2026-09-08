@@ -1,0 +1,333 @@
+/**
+ * React Query hooks for the messages API (TASK-051).
+ *
+ * Two layers of caching live here:
+ *
+ *   1. **Pagination cache (TanStack Query)** — `useInfiniteQuery` with a
+ *      key of `['messages', 'private' | 'group', chatId]`. The server
+ *      returns pages in *oldest-first* order; the `select` transform
+ *      flattens all loaded pages and reverses them so the UI can render
+ *      newest-first without per-message sorting. The query cache
+ *      survives chat switches because the keys are per-`chatId`.
+ *
+ *   2. **Decryption cache (in-memory `Map`)** — once we've decrypted a
+ *      message we keep `{ text, verified }` keyed by `messageId`.
+ *      Re-renders that re-touch the same message (re-mount, scroll
+ *      virtualization, hot reload) re-use the cached plaintext instead
+ *      of running the (expensive) OpenPGP decrypt again. The cache is
+ *      wiped by `clearDecryptedCache()` on lock / logout — once the
+ *      private key is gone the cached plaintexts are the only remaining
+ *      copy of the cleartext message, and they must not survive a lock
+ *      boundary.
+ *
+ * Decryption is **lazy**: messages are not decrypted at fetch time.
+ * The caller (typically `MessageBubble` in TASK-053) calls
+ * `useDecryptedMessage` per visible message; React Query handles
+ * per-message fetching + caching so decryption runs at most once per
+ * `messageId`.
+ *
+ * `useDecryptedMessage` is `enabled` only when `keyringStore.privateKey`
+ * is non-null. When the keyring is locked the hook stays idle and the
+ * UI is expected to render a "🔒 Locked" placeholder.
+ *
+ * MVP caveat (see `.agents/report_for_backend/01`): there is no
+ * per-message sender-public-key lookup yet, so verification falls back
+ * to the current user's own public key. That is correct for self-
+ * messages (notes-to-self) and will mis-verify for real correspondents
+ * until the backend exposes the missing endpoint. Decryption itself
+ * still works in both cases because the recipient is always the
+ * current user.
+ */
+
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+  type UseInfiniteQueryResult,
+  type UseQueryResult,
+} from "@tanstack/react-query";
+import type * as openpgp from "openpgp";
+
+import { useKeyringStore } from "@/features/keyring/keyringStore";
+import * as keyring from "@/features/keyring/encrypt";
+
+import * as messagesApi from "./api";
+import type { DialogMessage, ListItems } from "./model";
+
+/* ------------------------------------------------------------------ *
+ * Decryption cache (in-memory, not React-Query-managed)
+ * ------------------------------------------------------------------ */
+
+/** A decrypted message — plaintext + signature-verification result. */
+export interface DecryptedMessage {
+  text: string;
+  verified: boolean;
+}
+
+/**
+ * Module-scoped map. Keyed by `messageId` (UUID from the wire). Lives
+ * for the lifetime of the JS context — wiped by {@link clearDecryptedCache}
+ * on lock / logout. Not persisted; never reaches the server.
+ */
+const decryptedCache = new Map<string, DecryptedMessage>();
+
+/**
+ * Wipe the entire decryption cache. Call on lock / logout — once the
+ * private key is gone, the cached plaintexts are the only remaining
+ * copy of the cleartext message, and they must not survive a lock
+ * boundary.
+ */
+export function clearDecryptedCache(): void {
+  decryptedCache.clear();
+}
+
+/**
+ * Manual read-access to the decryption cache. Returns `undefined` if
+ * the message hasn't been decrypted yet (either because it hasn't
+ * rendered or because decryption hasn't completed). Lets non-React
+ * code (logging, tests) peek without subscribing to a query.
+ */
+export function getDecrypted(id: string): DecryptedMessage | undefined {
+  return decryptedCache.get(id);
+}
+
+/* ------------------------------------------------------------------ *
+ * Wire → Uint8Array helper
+ * ------------------------------------------------------------------ */
+
+/**
+ * Decode a base64-encoded string from the wire into a `Uint8Array`.
+ * `Message.encrypted_message` and `Message.signature` arrive on the
+ * wire as base64 strings (per `model.ts`); `decryptText` expects raw
+ * bytes.
+ */
+function decodeBase64(b64: string): Uint8Array {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+/* ------------------------------------------------------------------ *
+ * Decryption helper (shared by `decryptMessage` and `useDecryptedMessage`)
+ * ------------------------------------------------------------------ */
+
+interface DecryptDeps {
+  privateKey: openpgp.PrivateKey | null;
+  publicKey: openpgp.Key | null;
+}
+
+async function tryDecrypt(
+  msg: DialogMessage,
+  deps: DecryptDeps,
+  senderPublicKeyArmored?: string,
+): Promise<DecryptedMessage | null> {
+  const { privateKey, publicKey } = deps;
+  if (privateKey === null) {
+    return null;
+  }
+
+  // MVP: fall back to the current user's own public key. Correct for
+  // notes-to-self; will mis-verify for real correspondents until the
+  // backend ships the per-message sender-key endpoint (see
+  // `.agents/report_for_backend/01`).
+  let senderKey: openpgp.Key | null = publicKey;
+  if (senderPublicKeyArmored !== undefined && senderPublicKeyArmored.length > 0) {
+    senderKey = await keyring.importPublicKey(senderPublicKeyArmored);
+  }
+  if (senderKey === null) {
+    return null;
+  }
+
+  const encrypted = decodeBase64(msg.encrypted_message);
+  const signature = decodeBase64(msg.signature);
+
+  // `decryptText` throws on actual decrypt failure (no matching key,
+  // corrupt ciphertext). Surface it as `null` so the UI can render a
+  // placeholder rather than crashing the whole message list.
+  try {
+    return await keyring.decryptText(encrypted, signature, senderKey, privateKey);
+  } catch {
+    return null;
+  }
+}
+
+async function decryptMessage(
+  msg: DialogMessage,
+  senderPublicKeyArmored?: string,
+): Promise<DecryptedMessage | null> {
+  const cached = decryptedCache.get(msg.id);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const { privateKey, publicKey } = useKeyringStore.getState();
+  const result = await tryDecrypt(msg, { privateKey, publicKey }, senderPublicKeyArmored);
+
+  if (result !== null) {
+    decryptedCache.set(msg.id, result);
+  }
+  return result;
+}
+
+/* ------------------------------------------------------------------ *
+ * Pagination shape
+ * ------------------------------------------------------------------ */
+
+const PAGE_LIMIT = 50;
+
+/** A single page returned by the messages API. */
+type MessagesPage = ListItems<DialogMessage>;
+
+/** `useInfiniteQuery`'s `select` output: all loaded pages flattened + reversed. */
+interface FlatMessages {
+  pages: MessagesPage[];
+  items: DialogMessage[];
+}
+
+/** Distinguishes the two list flavors; used as the second slot of the query key. */
+export type MessagesKind = "private" | "group";
+
+/* ------------------------------------------------------------------ *
+ * usePrivateMessages
+ * ------------------------------------------------------------------ */
+
+export function usePrivateMessages(
+  chatId: string | undefined,
+): UseInfiniteQueryResult<FlatMessages, Error> {
+  return useInfiniteQuery<
+    MessagesPage,
+    Error,
+    FlatMessages,
+    readonly ["messages", "private", string],
+    number
+  >({
+    queryKey: ["messages", "private", chatId ?? ""],
+    enabled: chatId !== undefined,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      messagesApi.getPrivateMessages(chatId!, {
+        offset: pageParam,
+        limit: PAGE_LIMIT,
+      }),
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.items.length === PAGE_LIMIT
+        ? allPages.flatMap((p) => p.items).length
+        : undefined,
+    select: (data) => ({
+      pages: data.pages,
+      // Server returns oldest-first; reverse so the UI can render
+      // newest at the bottom (typical chat layout).
+      items: data.pages.flatMap((p) => p.items).reverse(),
+    }),
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * useGroupMessages
+ * ------------------------------------------------------------------ */
+
+export function useGroupMessages(
+  chatId: string | undefined,
+): UseInfiniteQueryResult<FlatMessages, Error> {
+  return useInfiniteQuery<
+    MessagesPage,
+    Error,
+    FlatMessages,
+    readonly ["messages", "group", string],
+    number
+  >({
+    queryKey: ["messages", "group", chatId ?? ""],
+    enabled: chatId !== undefined,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      messagesApi.getGroupMessages(chatId!, {
+        offset: pageParam,
+        limit: PAGE_LIMIT,
+      }),
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.items.length === PAGE_LIMIT
+        ? allPages.flatMap((p) => p.items).length
+        : undefined,
+    select: (data) => ({
+      pages: data.pages,
+      items: data.pages.flatMap((p) => p.items).reverse(),
+    }),
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * useDecryptedMessage — per-message lazy decryption
+ * ------------------------------------------------------------------ */
+
+/**
+ * Lazily decrypt a single message. Backed by React Query so React
+ * StrictMode double-invokes and concurrent renders don't run the
+ * OpenPGP work twice.
+ *
+ * `enabled` is gated on `keyringStore.privateKey !== null` — while
+ * locked the query stays idle and `data` stays `undefined`, so the UI
+ * should render a "🔒 Locked" placeholder.
+ *
+ * `staleTime: Infinity` because the plaintext of a given `messageId`
+ * never changes; React Query won't refetch on remount.
+ */
+export function useDecryptedMessage(
+  messageId: string,
+  encryptedMessage: string,
+  signature: string,
+  senderPublicKeyArmored?: string,
+): UseQueryResult<DecryptedMessage | null, Error> {
+  const privateKey = useKeyringStore((s) => s.privateKey);
+
+  return useQuery<DecryptedMessage | null, Error>({
+    queryKey: ["message-decrypt", messageId],
+    enabled: privateKey !== null,
+    staleTime: Infinity,
+    queryFn: async (): Promise<DecryptedMessage | null> => {
+      // Build a minimal stub so we can reuse `decryptMessage`. Only the
+      // three fields touched by the helper matter; the rest is filler.
+      const stub = {
+        id: messageId,
+        encrypted_message: encryptedMessage,
+        signature,
+      } as unknown as DialogMessage;
+      return decryptMessage(stub, senderPublicKeyArmored);
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Cache invalidation helpers
+ * ------------------------------------------------------------------ */
+
+/**
+ * Imperatively invalidate the cached pages for a single chat. Useful
+ * when an external system (a fresh event poll, a manual refresh) knows
+ * new messages exist and we don't want to wait for stale-time. Exposed
+ * here so the query-key shape lives in exactly one place and stays in
+ * sync with the hooks above.
+ */
+export function useInvalidateMessages(): (
+  chatId: string,
+  kind?: MessagesKind,
+) => Promise<void> {
+  const queryClient = useQueryClient();
+  return async (chatId: string, kind: MessagesKind = "private") => {
+    await queryClient.invalidateQueries({
+      queryKey: ["messages", kind, chatId],
+    });
+  };
+}
+
+/**
+ * Lower-level helper for callers that already hold a `QueryClient`
+ * (e.g. `QueryClient` defaults, middleware, or tests).
+ */
+export function invalidateMessages(
+  queryClient: QueryClient,
+  chatId: string,
+  kind: MessagesKind = "private",
+): Promise<void> {
+  return queryClient.invalidateQueries({
+    queryKey: ["messages", kind, chatId],
+  });
+}

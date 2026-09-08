@@ -1,0 +1,78 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "retry": "Retry",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "logout": "Logout",
+    "setupKey": "Setup your encryption key",
+    "generateKey": "Generate new",
+    "importKey": "Import existing",
+    "exportKey": "Export keystore",
+    "passphrase": "Passphrase",
+    "passphraseMin": "Passphrase must be at least 8 characters",
+    "passphrasesMismatch": "Passphrases don't match",
+    "verifyPassphrase": "Passphrase (to verify)"
+  },
+  "chats": {
+    "title": "Chats",
+    "empty": "No chats yet",
+    "startNew": "Start new chat",
+    "newChat": "New chat",
+    "newGroup": "New group",
+    "peerUuid": "Peer user UUID",
+    "chatName": "Chat name",
+    "createChat": "Create chat",
+    "createGroup": "Create group",
+    "groupE2EWarning": "Group E2E encryption is incomplete in MVP. See backend report #02.",
+    "invalidUuid": "Invalid UUID format",
+    "selfChat": "Can't create chat with yourself"
+  },
+  "messages": {
+    "send": "Send",
+    "typeMessage": "Type a message…",
+    "decrypting": "Decrypting…",
+    "locked": "🔒 Locked",
+    "unlockToSend": "Unlock to send messages",
+    "verified": "Signature verified",
+    "invalidSignature": "Signature invalid"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "keys": "Keys",
+    "appearance": "Appearance",
+    "about": "About",
+    "fingerprint": "Fingerprint",
+    "language": "Language",
+    "theme": "Theme",
+    "pollingInterval": "Polling interval (ms)",
+    "autoLock": "Auto-lock on idle",
+    "idleTimeout": "Idle timeout (ms)",
+    "notifications": "Notifications"
+  },
+  "errors": {
+    "networkError": "No connection to server",
+    "sessionExpired": "Session expired, please sign in again",
+    "noAccess": "No access",
+    "notFound": "Not found",
+    "setUpKeyFirst": "First, add your public key in Settings",
+    "fileTooLarge": "File too large (max. 50 MB)",
+    "invalidData": "Invalid data or signature",
+    "serverError": "Server error, try again later"
+  }
+}

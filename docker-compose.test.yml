@@ -1,0 +1,104 @@
+name: quant-test
+
+# Full test stack for the Quant frontend.
+# Runs on dreamliner via `npm run test:remote` (see scripts/test-remote.sh).
+#
+# Полный тестовый стек для Quant-фронтенда.
+# Запускается на dreamliner через `npm run test:remote` (см. scripts/test-remote.sh).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: quant-test-postgres
+    environment:
+      POSTGRES_USER: quant_test
+      POSTGRES_PASSWORD: quant_test
+      POSTGRES_DB: quant_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quant_test -d quant_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # No port mapping: backend in same network.
+    # Порт наружу не пробрасываем: backend в той же сети.
+
+  backend:
+    build:
+      context: ../Quant/server
+      dockerfile_inline: |
+        FROM python:3.13-slim
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y --no-install-recommends \
+            gcc libpq-dev \
+            && rm -rf /var/lib/apt/lists/*
+        COPY pyproject.toml uv.lock ./
+        RUN pip install --no-cache-dir uv \
+            && uv sync --frozen --extra postgresql --no-dev
+        COPY src ./src
+        COPY alembic.ini ./
+        COPY src/migrations ./migrations
+        ENV PYTHONPATH=/app/src
+        EXPOSE 8000
+        CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    container_name: quant-test-backend
+    environment:
+      DB_TYPE: postgresql
+      DB_PATH: quant_test:quant_test@postgres:5432/quant_test
+      SECRET_KEY_VER: test-secret-ver
+      SECRET_KEY_REST: test-secret-rest
+      DEBUG: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Run migrations on startup, then start uvicorn.
+    # Миграции при старте, потом uvicorn.
+    command:
+      - sh
+      - -c
+      - |
+        uv run alembic upgrade head &&
+        uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    container_name: quant-test-runner
+    environment:
+      VITE_API_URL: http://backend:8000
+      CI: "true"
+      # No display needed for headless playwright.
+      # Playwright в headless-режиме.
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - test-results:/app/test-results
+      - playwright-report:/app/playwright-report
+    # Full suite: unit → integration → e2e.
+    # Полный прогон: unit → integration → e2e.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "=== Unit tests ===" && npm run test -- --run --reporter=verbose
+        echo "=== Integration tests ===" && npm run test:integration -- --run --reporter=verbose
+        echo "=== E2E tests ===" && npm run test:e2e
+
+volumes:
+  postgres_data:
+  test-results:
+  playwright-report:
+
+networks:
+  default:
+    name: quant-test-net

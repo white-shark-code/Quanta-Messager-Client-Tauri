@@ -1,0 +1,31 @@
+{
+  "productName": "Quant Messenger",
+  "version": "0.1.0",
+  "identifier": "com.quant.messenger",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Quant",
+        "width": 1100,
+        "height": 720
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost ${VITE_API_URL:-http://localhost:8000}; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Network",
+    "copyright": "",
+    "shortDescription": "E2E-encrypted messenger",
+    "longDescription": "Quant Messenger — secure E2E-encrypted messaging client"
+  }
+}
