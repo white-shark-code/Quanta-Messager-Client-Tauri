@@ -1,17 +1,21 @@
 /**
- * Lightweight debug logger for development.
+ * Lightweight debug logger.
  *
- * - In dev mode (`import.meta.env.DEV` is true):
- *   - Tauri runtime: appends to `<app_data_dir>/debug.log` via
- *     `@tauri-apps/plugin-fs`. Falls back to `console.warn` on any
- *     permission/disk error so the log path never crashes the host flow.
- *   - Browser (vite dev): appends to `localStorage` key `quant-debug-log`
- *     as a ring buffer of the last `MAX_LOG_ENTRIES` entries.
- * - In production: completely no-op (zero overhead, `isDev()` short-circuits
- *   before any side-effect).
+ * - In Tauri runtime: appends to `<app_data_dir>/debug.log` via
+ *   `@tauri-apps/plugin-fs`. Falls back to `console.warn` on any
+ *   permission/disk error so the log path never crashes the host flow.
+ * - In Browser (vite dev / plain browser): appends to `localStorage` key
+ *   `quant-debug-log` as a ring buffer of the last `MAX_LOG_ENTRIES`
+ *   entries.
  *
  * The log is append-only — entries are timestamped. Use `getDebugLog()`
  * to read everything back, `clearDebugLog()` to wipe.
+ *
+ * Previously gated by `if (!isDev()) return;`. That gate was removed:
+ * when `import.meta.env.DEV` is somehow false in dev (or undefined in
+ * a misconfigured build) we still want the log — otherwise we silently
+ * lose evidence of the very bugs the log is supposed to help diagnose.
+ * The cost of always writing is negligible (≤ a few KB per session).
  *
  * NOTE: this module imports `@tauri-apps/plugin-fs` directly rather than
  * going through `@/infra/tauriBridge`. That is intentional: the bridge
@@ -102,13 +106,12 @@ async function writeAppDebugLog(content: string): Promise<void> {
   );
 }
 
-/** Append a debug entry. No-op in production. */
+/** Append a debug entry. Always-on; the cost of writing is negligible. */
 export async function debugLog(
   label: string,
   err: unknown,
   context?: Record<string, unknown>,
 ): Promise<void> {
-  if (!isDev()) return;
   const entry = formatDebugEntry(label, err, context);
   if (inTauri()) {
     try {

@@ -156,10 +156,11 @@ describe("lib/debug — debugLog (Tauri path)", () => {
     // Second positional arg is the encoded bytes (Uint8Array).
     const call = vi.mocked(fsPlugin.writeFile).mock.calls[0];
     expect(call).toBeDefined();
-    const bytes = call?.[1];
-    // Cross-realm Uint8Array: jsdom's encoder produces a buffer that
-    // prints as `Uint8Array[…]` but is from a different realm than
-    // Node's `Uint8Array`. Accept either.
+    // The plugin-fs v2 type union widens `bytes` to
+    // `Uint8Array<ArrayBufferLike> | ReadableStream<...>` — narrow it
+    // here with a runtime guard since debugLog only ever writes a
+    // Uint8Array.
+    const bytes = call?.[1] as Uint8Array | undefined;
     expect(bytes).toBeDefined();
     expect(typeof bytes?.length).toBe("number");
     expect(typeof bytes?.[0]).toBe("number");
@@ -174,21 +175,26 @@ describe("lib/debug — debugLog (Tauri path)", () => {
   });
 });
 
-describe("lib/debug — debugLog (production no-op)", () => {
+describe("lib/debug — debugLog (no DEV gate)", () => {
+  // debugLog used to short-circuit in production (`!isDev()`). That gate
+  // was removed: when `import.meta.env.DEV` is somehow false in dev (or
+  // undefined in a misconfigured build) we still want the log.
   beforeEach(forceBrowserMode);
   afterEach(() => {
     vi.unstubAllEnvs();
     forceBrowserMode();
   });
 
-  it("writes nothing when DEV is false (production)", async () => {
+  it("writes even when DEV is false (no DEV gate)", async () => {
     vi.stubEnv("DEV", false);
 
     await debugLog("prod", new Error("ignored"));
 
-    expect(localStorage.getItem(LS_KEY)).toBeNull();
-    expect(fsPlugin.writeFile).not.toHaveBeenCalled();
-    expect(fsPlugin.readFile).not.toHaveBeenCalled();
+    // Browser path: localStorage gets the entry.
+    const raw = localStorage.getItem(LS_KEY);
+    expect(raw).not.toBeNull();
+    const arr = JSON.parse(raw as string) as string[];
+    expect(arr.some((e) => e.includes("[prod]"))).toBe(true);
   });
 });
 

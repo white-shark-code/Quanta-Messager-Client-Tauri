@@ -13,7 +13,7 @@
  * which mirrors them to the Tauri LazyStore on disk.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Button,
@@ -24,6 +24,7 @@ import {
   Modal,
   NumberInput,
   Paper,
+  ScrollArea,
   SegmentedControl,
   Stack,
   Switch,
@@ -32,7 +33,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconLogout } from "@tabler/icons-react";
+import { IconLogout, IconRefresh } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -40,6 +41,11 @@ import { useSessionStore } from "@/features/auth/sessionStore";
 import { deleteKeystoreForUser } from "@/features/keyring/generate";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { useSettingsStore } from "@/features/settings/settingsStore";
+import {
+  clearDebugLog,
+  getDebugLog,
+  getDebugLogLocation,
+} from "@/lib/debug";
 import { ColorSchemeToggle } from "@/ui/components/ColorSchemeToggle";
 
 export function SettingsRoute(): JSX.Element {
@@ -58,6 +64,17 @@ export function SettingsRoute(): JSX.Element {
 
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [eraseData, setEraseData] = useState(false);
+
+  // Diagnostics panel state.
+  const [debugContent, setDebugContent] = useState<string>("");
+  const [debugLocation, setDebugLocation] = useState<string>("");
+  async function refreshDebugLog(): Promise<void> {
+    setDebugLocation(getDebugLogLocation());
+    setDebugContent(await getDebugLog());
+  }
+  useEffect(() => {
+    void refreshDebugLog();
+  }, []);
 
   async function handleLogout(): Promise<void> {
     const uid = user?.id;
@@ -196,18 +213,57 @@ export function SettingsRoute(): JSX.Element {
         </Tabs.Panel>
 
         <Tabs.Panel value="about" pt="md">
-          <Paper withBorder p="md">
-            <Stack>
-              <Text fw={500}>Quant Messenger</Text>
-              <Text size="sm" c="dimmed">
-                {t("settings.version")}
-              </Text>
-              <Text size="sm">{t("settings.aboutDescription")}</Text>
-              <Badge color="green" variant="light">
-                MIT License
-              </Badge>
-            </Stack>
-          </Paper>
+          <Stack>
+            <Paper withBorder p="md">
+              <Stack>
+                <Text fw={500}>Quant Messenger</Text>
+                <Text size="sm" c="dimmed">
+                  {t("settings.version")}
+                </Text>
+                <Text size="sm">{t("settings.aboutDescription")}</Text>
+                <Badge color="green" variant="light">
+                  MIT License
+                </Badge>
+              </Stack>
+            </Paper>
+            <Paper withBorder p="md">
+              <Stack>
+                <Text fw={500}>{t("settings.diagnostics.title")}</Text>
+                <Text size="xs" c="dimmed">
+                  {t("settings.diagnostics.locationLabel")}
+                </Text>
+                <Code block>{debugLocation}</Code>
+                <Group>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconRefresh size={14} />}
+                    onClick={() => void refreshDebugLog()}
+                  >
+                    {t("settings.diagnostics.refresh")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => {
+                      void clearDebugLog().then(() => {
+                        void refreshDebugLog();
+                      });
+                    }}
+                  >
+                    {t("settings.diagnostics.clear")}
+                  </Button>
+                </Group>
+                <ScrollArea h={240}>
+                  <Code block fz="xs">
+                    {debugContent.length > 0
+                      ? debugContent
+                      : t("settings.diagnostics.empty")}
+                  </Code>
+                </ScrollArea>
+              </Stack>
+            </Paper>
+          </Stack>
         </Tabs.Panel>
       </Tabs>
 

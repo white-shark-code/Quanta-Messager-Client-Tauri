@@ -108,7 +108,14 @@
     "logoutEraseData": "Erase all data on this device for this user",
     "notifications": "Notifications",
     "version": "v0.1.0 — alpha",
-    "aboutDescription": "E2E-encrypted messenger. Zero-knowledge architecture."
+    "aboutDescription": "E2E-encrypted messenger. Zero-knowledge architecture.",
+    "diagnostics": {
+      "title": "Diagnostics",
+      "locationLabel": "Debug log location",
+      "refresh": "Refresh",
+      "clear": "Clear log",
+      "empty": "(empty — no entries yet)"
+    }
   },
   "nav": {
     "appName": "Quant",
@@ -119,7 +126,8 @@
   },
   "chat": {
     "peerNoKeyTitle": "Recipient has no PGP key",
-    "peerNoKeyDescription": "{{email}} hasn't set up end-to-end encryption yet. Messages you send from this device will be encrypted to yourself only — they won't be readable by the recipient until they generate or import a key."
+    "peerNoKeyDescription": "{{email}} hasn't set up end-to-end encryption yet. Messages you send from this device will be encrypted to yourself only — they won't be readable by the recipient until they generate or import a key.",
+    "loadingPeerKey": "Looking up recipient's PGP key…"
   },
   "createKeystore": {
     "title": "Create secure keystore",

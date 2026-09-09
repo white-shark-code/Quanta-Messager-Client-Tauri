@@ -58,6 +58,11 @@ export function ChatRoute(): JSX.Element | null {
   // case, but treat it the same as "no key" so the user gets feedback.
   const peerLookup404 =
     peerKey.error instanceof ApiError && peerKey.error.status === 404;
+  // True only while the hook hasn't produced data yet (initial mount
+  // or a refetch). Once we have *any* answer — even has_public_key=false
+  // — we treat the lookup as done.
+  const peerKeyLoading =
+    peerKey.data === undefined && peerKey.isFetching && !peerLookup404;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -92,9 +97,11 @@ export function ChatRoute(): JSX.Element | null {
   // leaves `{email}` blank.
   const peerLabel = chat?.name ?? "";
   const composerDisabledReason =
-    peerMissingKey || peerLookup404
-      ? t("chat.peerNoKeyDescription", { email: peerLabel })
-      : undefined;
+    peerKeyLoading
+      ? t("chat.loadingPeerKey")
+      : peerMissingKey || peerLookup404
+        ? t("chat.peerNoKeyDescription", { email: peerLabel })
+        : undefined;
 
   return (
     <Stack
@@ -139,10 +146,25 @@ export function ChatRoute(): JSX.Element | null {
         </Alert>
       )}
 
+      {peerKeyLoading && (
+        <Alert
+          color="blue"
+          icon={<Loader size={16} />}
+          mx="sm"
+          title={t("chat.loadingPeerKey")}
+        >
+          {t("chat.loadingPeerKey")}
+        </Alert>
+      )}
+
       <Composer
         chatId={chatId}
         kind={kind}
-        peerPublicKeyArmored={peerKey.data?.public_key ?? null}
+        peerPublicKeyArmored={
+          peerKey.data?.has_public_key === true
+            ? (peerKey.data?.public_key ?? null)
+            : null
+        }
         {...(composerDisabledReason !== undefined
           ? { disabledReason: composerDisabledReason }
           : {})}
