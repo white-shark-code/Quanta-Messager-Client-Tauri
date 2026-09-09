@@ -29,6 +29,8 @@
 
 /// <reference types="vite/client" />
 
+declare const window: { __TAURI_INTERNALS__?: unknown };
+
 import { BaseDirectory, readFile, writeFile } from "@tauri-apps/plugin-fs";
 
 const DEBUG_LOG_FILENAME = "debug.log";
@@ -47,9 +49,7 @@ export function isDev(): boolean {
 /** Pure DOM check for Tauri runtime (avoids importing @tauri-apps/api). */
 function inTauri(): boolean {
   try {
-    if (typeof globalThis === "undefined") return false;
-    const g = globalThis as { __TAURI_INTERNALS__?: unknown };
-    return "__TAURI_INTERNALS__" in g;
+    return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   } catch {
     return false;
   }

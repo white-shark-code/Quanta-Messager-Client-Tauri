@@ -190,36 +190,37 @@ function updateCache(
  * Resolve which public keys the ciphertext is encrypted to.
  *
  * Two modes:
- * - **Peer encryption** (preferred): when `peerPublicKeyArmored` is a
- *   non-empty string, import it and encrypt to that key. Required for
- *   real peer-to-peer — without it the recipient cannot decrypt.
- * - **Notes-to-self** (fallback): when `peerPublicKeyArmored` is `null`
- *   (caller explicitly says "no peer key, encrypt to me"), encrypt to
- *   the local user's own key. Preserves the pre-multi-user behaviour
- *   where messages were always addressed to oneself.
+ * - **Peer encryption** (required for `private`/`group` chats when
+ *   `expectPeer === true`): when `peerPublicKeyArmored` is a non-empty
+ *   string, import it and encrypt to that key. Required for real
+ *   peer-to-peer — without it the recipient cannot decrypt.
+ * - **Notes-to-self** (only when `expectPeer === false`): encrypt to
+ *   the local user's own key. Used for self-messages where the user
+ *   doesn't have a separate recipient.
  *
- * An *empty string* is treated as a programming error and throws —
- * the previous silent fallback would send Bob's ciphertext to himself
- * and leave Alice staring at "🔒 Заблокировано".
+ * A `null`/`""` peer key when `expectPeer === true` throws — the
+ * previous silent fallback would send Bob's ciphertext to himself and
+ * leave Alice staring at "🔒 Заблокировано".
  *
- * Returns `null` when no key (own or peer) is usable; the caller should
- * short-circuit and surface "no keys loaded" to the user.
+ * Returns `null` only when no key (own or peer) is usable and we
+ * deliberately accept notes-to-self mode.
  */
 async function resolveRecipients(
   ownPublicKey: openpgp.Key | null,
   peerPublicKeyArmored: string | null,
+  expectPeer: boolean,
 ): Promise<openpgp.Key[] | null> {
-  if (peerPublicKeyArmored === null) {
-    if (ownPublicKey !== null) return [ownPublicKey];
-    return null;
+  if (peerPublicKeyArmored !== null && peerPublicKeyArmored.length > 0) {
+    const peerKey = await keyring.importPublicKey(peerPublicKeyArmored);
+    return [peerKey];
   }
-  if (peerPublicKeyArmored === "") {
+  if (expectPeer) {
     throw new Error(
-      "resolveRecipients: peerPublicKeyArmored is empty — refusing to fall back to encrypt-to-self for peer chat",
+      "resolveRecipients: peer public key missing for peer chat — refusing to encrypt-to-self. Wait for peerKey to load and retry.",
     );
   }
-  const peerKey = await keyring.importPublicKey(peerPublicKeyArmored);
-  return [peerKey];
+  if (ownPublicKey !== null) return [ownPublicKey];
+  return null;
 }
 
 type SendFn = (chatId: string, req: CreateMessageRequest) => Promise<DialogMessage>;
@@ -261,7 +262,11 @@ function useSendMessage(
         throw new Error("Cannot send an empty message");
       }
 
-      const recipients = await resolveRecipients(publicKey, peerPublicKeyArmored ?? null);
+      const recipients = await resolveRecipients(
+        publicKey,
+        peerPublicKeyArmored ?? null,
+        kind === "private",
+      );
       if (recipients === null) {
         throw new Error("No recipient public key available");
       }
