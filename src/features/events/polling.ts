@@ -20,6 +20,8 @@ export function useEventsPolling() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("__TAURI_INTERNALS__" in window)) return;
     let unlistenPaused: UnlistenFn | undefined;
     let unlistenResumed: UnlistenFn | undefined;
     void onAppEvent("paused", () => setPaused(true)).then((u) => {

@@ -1,78 +1,213 @@
 {
   "common": {
-    "loading": "Loading…",
-    "error": "Error",
-    "save": "Save",
     "cancel": "Cancel",
-    "back": "Back",
-    "retry": "Retry",
-    "yes": "Yes",
-    "no": "No"
+    "a11y": {
+      "groupChat": "group chat",
+      "privateChat": "private chat",
+      "switchToLight": "Switch to light theme",
+      "switchToDark": "Switch to dark theme"
+    }
+  },
+  "unlock": {
+    "title": "Unlock Quant",
+    "description": "Enter your keystore passphrase to access your messages.",
+    "placeholder": "Your passphrase (leave empty if none was set)"
   },
   "auth": {
-    "login": "Login",
-    "register": "Register",
     "email": "Email",
-    "password": "Password",
-    "signIn": "Sign in",
-    "signUp": "Create account",
-    "noAccount": "Don't have an account?",
-    "haveAccount": "Already have an account?",
-    "logout": "Logout",
-    "setupKey": "Setup your encryption key",
-    "generateKey": "Generate new",
-    "importKey": "Import existing",
-    "exportKey": "Export keystore",
-    "passphrase": "Passphrase",
-    "passphraseMin": "Passphrase must be at least 8 characters",
-    "passphrasesMismatch": "Passphrases don't match",
-    "verifyPassphrase": "Passphrase (to verify)"
+    "login": {
+      "title": "Login",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "noAccount": "Don't have an account?",
+      "registerLink": "Register"
+    },
+    "unlock": {
+      "title": "Session expired",
+      "description": "Your session expired. Enter your keystore passphrase (leave empty if none was set) to continue.",
+      "passphraseOptional": "Passphrase (optional)",
+      "passphrase": "Keystore passphrase",
+      "pgpDiffers": "PGP key passphrase is different",
+      "pgpPassphrase": "PGP key passphrase",
+      "reauthDivider": "or re-authorize",
+      "reauthHint": "If your server session expired too, enter your password below to log in again. Leave it empty to only unlock the keystore.",
+      "submit": "Unlock",
+      "submitReauth": "Unlock & re-authorize",
+      "emailLocked": "Email is locked to your account"
+    },
+    "logout": "Logout"
+  },
+  "nav": {
+    "chats": "Chats",
+    "newChat": "New chat",
+    "settings": "Settings",
+    "keys": "Keys"
   },
   "chats": {
     "title": "Chats",
     "empty": "No chats yet",
     "startNew": "Start new chat",
-    "newChat": "New chat",
-    "newGroup": "New group",
-    "peerUuid": "Peer user UUID",
-    "chatName": "Chat name",
-    "createChat": "Create chat",
-    "createGroup": "Create group",
-    "groupE2EWarning": "Group E2E encryption is incomplete in MVP. See backend report #02.",
-    "invalidUuid": "Invalid UUID format",
-    "selfChat": "Can't create chat with yourself"
+    "loadMore": "Load more",
+    "newChat": {
+      "title": "New chat",
+      "description": "Enter the UUID of the user you want to chat with. (Email-based invites are not supported in MVP — see backend report #01.)",
+      "peerUuidLabel": "Peer user UUID",
+      "peerUuidPlaceholder": "550e8400-e29b-41d4-a716-446655440000",
+      "chatNameLabel": "Chat name (optional)",
+      "chatNamePlaceholder": "Default: peer UUID prefix",
+      "submit": "Create chat",
+      "errors": {
+        "notLoggedIn": "Not logged in",
+        "invalidUuid": "Invalid UUID format",
+        "selfChat": "Can't create chat with yourself"
+      }
+    },
+    "newGroup": {
+      "title": "New group",
+      "e2eWarning": "Group E2E encryption is incomplete in MVP. The creator's own public key is used as the group key (see report #02). Adding members requires a separate API call — not yet implemented.",
+      "nameLabel": "Group name",
+      "submit": "Create group",
+      "cancel": "Cancel",
+      "errors": {
+        "nameRequired": "Group name required",
+        "needKeyFirst": "Setup your encryption key first (/setup-key)"
+      }
+    }
   },
   "messages": {
-    "send": "Send",
-    "typeMessage": "Type a message…",
     "decrypting": "Decrypting…",
     "locked": "🔒 Locked",
-    "unlockToSend": "Unlock to send messages",
+    "retry": "Retry",
     "verified": "Signature verified",
-    "invalidSignature": "Signature invalid"
+    "invalidSignature": "Signature invalid",
+    "composer": {
+      "unlockFirst": "Unlock to send messages",
+      "unlockButton": "Unlock",
+      "setupKeyButton": "Set up keys",
+      "placeholder": "Type a message…",
+      "disabledPlaceholder": "Composer disabled — see notice above",
+      "sendTooltip": "Send (Enter)"
+    }
   },
   "settings": {
     "title": "Settings",
     "profile": "Profile",
-    "keys": "Keys",
     "appearance": "Appearance",
     "about": "About",
-    "fingerprint": "Fingerprint",
+    "email": "Email",
+    "userId": "User ID",
     "language": "Language",
     "theme": "Theme",
+    "currentTheme": "Current: {{theme}}",
     "pollingInterval": "Polling interval (ms)",
     "autoLock": "Auto-lock on idle",
     "idleTimeout": "Idle timeout (ms)",
-    "notifications": "Notifications"
+    "logoutConfirmText": "You can log back in with your passphrase. Check the box below to also remove your keystore from this device.",
+    "logoutConfirmTitle": "Log out?",
+    "logoutEraseData": "Erase all data on this device for this user",
+    "notifications": "Notifications",
+    "version": "v0.1.0 — alpha",
+    "aboutDescription": "E2E-encrypted messenger. Zero-knowledge architecture."
   },
-  "errors": {
-    "networkError": "No connection to server",
-    "sessionExpired": "Session expired, please sign in again",
-    "noAccess": "No access",
-    "notFound": "Not found",
-    "setUpKeyFirst": "First, add your public key in Settings",
-    "fileTooLarge": "File too large (max. 50 MB)",
-    "invalidData": "Invalid data or signature",
-    "serverError": "Server error, try again later"
+  "nav": {
+    "appName": "Quant",
+    "chats": "Chats",
+    "newChat": "New chat",
+    "settings": "Settings",
+    "keys": "Keys"
+  },
+  "chat": {
+    "peerNoKeyTitle": "Recipient has no PGP key",
+    "peerNoKeyDescription": "{{email}} hasn't set up end-to-end encryption yet. Messages you send from this device will be encrypted to yourself only — they won't be readable by the recipient until they generate or import a key."
+  },
+  "createKeystore": {
+    "title": "Create secure keystore",
+    "description": "Before you can send encrypted messages, we need to create a keystore file on this device. It holds your server access token (and optionally a PGP private key), protected by a passphrase.",
+    "keystoreSection": "Keystore passphrase (required)",
+    "keystoreWarning": "The keystore is encrypted with ChaCha20-Poly1305. If you forget this passphrase, your encrypted history becomes unrecoverable. There is no password reset.",
+    "keystorePassphrase": "Keystore passphrase",
+    "keystorePassphrasePlaceholder": "Choose a strong passphrase",
+    "keystorePassphraseConfirm": "Confirm keystore passphrase",
+    "pgpSection": "PGP key",
+    "pgpDescription": "PGP is only required to encrypt and decrypt messages. If you skip it now, you'll be logged in but the chat composer will stay disabled until you set up a key later via /setup-key.",
+    "modeGenerate": "Generate",
+    "modeImport": "Import",
+    "modeSkip": "Skip for now",
+    "pgpSeparatePassphrase": "Use a different passphrase for the PGP key",
+    "pgpPassphrase": "PGP key passphrase",
+    "pgpPassphraseConfirm": "Confirm PGP key passphrase",
+    "importArmoredLabel": "ASCII-armored private key",
+    "importArmoredPlaceholder": "-----BEGIN PGP PRIVATE KEY BLOCK-----\n...\n-----END PGP PRIVATE KEY BLOCK-----",
+    "importPassphraseLabel": "Passphrase for this PGP key",
+    "skipDescription": "A keystore with no PGP key will be created. You'll be able to browse chats and read messages that are already in the clear, but you won't be able to send or receive encrypted messages until you set up a PGP key via /setup-key.",
+    "algorithm": "Key algorithm",
+    "algorithmHelp": "ECC is fast (~100 ms) and recommended for modern clients. RSA 4096 is slower (~3-5 s) and only needed for compatibility with very old PGP software (GPG < 2.3).",
+    "submit": "Create keystore & continue",
+    "errors": {
+      "noUser": "Not logged in",
+      "keystorePassphraseRequired": "Keystore passphrase is required",
+      "keystorePassphrasesMismatch": "Keystore passphrases do not match",
+      "pgpPassphraseEmpty": "PGP passphrase cannot be empty when the checkbox is on",
+      "pgpPassphrasesMismatch": "PGP passphrases do not match",
+      "importInvalidArmor": "Pasted text does not look like a PGP private key block",
+      "importPassphraseRequired": "Passphrase for the imported PGP key is required"
+    }
+  },
+  "setupKey": {
+    "title": "Setup your encryption key",
+    "passphraseOptional": "Passphrase (optional)",
+    "passphraseImportLabel": "Passphrase (optional — only if your key was encrypted)",
+    "passphraseVerifyLabel": "Passphrase (to verify)",
+    "sharePassphraseLabel": "Keystore passphrase (optional)",
+    "emptyPassphraseWarning": "⚠ Leaving the passphrase empty means anyone with access to the keystore file can decrypt your private key. Use only on trusted, full-disk-encrypted devices.",
+    "tabs": {
+      "generate": "Generate new",
+      "import": "Import existing",
+      "export": "Export keystore",
+      "share": "Share"
+    },
+    "generate": {
+      "description": "Generate a new PGP key pair. The private key is stored encrypted on your device. The public key is uploaded to the server.",
+      "algorithm": "Key algorithm",
+      "eccLabel": "ECC (Curve25519)",
+      "rsaLabel": "RSA 4096",
+      "algorithmHelp": "ECC is fast (≈100 ms) and recommended for modern clients. RSA 4096 is slower (≈3-5 s) but works with old PGP software (GPG < 2.3).",
+      "submit": "Generate and continue"
+    },
+    "import": {
+      "description": "Paste your ASCII-armored PGP private key:",
+      "armoredLabel": "Armored key",
+      "armoredPlaceholder": "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+      "invalidKey": "Not a valid private key",
+      "submit": "Import and continue",
+      "tip": "Tip: the block may also contain a public key section — it's used as-is when present."
+    },
+    "export": {
+      "description": "Export your encrypted keystore as a .qks.json file for backup:",
+      "submit": "Export keystore",
+      "savedTo": "Saved to {{path}}"
+    },
+    "share": {
+      "title": "Handle with extreme care",
+      "warning1": "Sharing your private key grants full access to your encrypted messages.",
+      "warning2": "Anyone with this key can decrypt everything ever sent to you AND sign messages as you.",
+      "warning3": "Only share with devices YOU OWN. Use a trusted channel.",
+      "passphrasePlaceholder": "Leave empty if the key has no passphrase",
+      "confirmCheckbox": "I understand the risks of sharing my private key",
+      "reveal": "Reveal private key",
+      "revealedLabel": "Armored private key",
+      "copy": "Copy",
+      "copied": "Copied",
+      "download": "Download .asc",
+      "qrWarning": "QR code may not scan reliably for RSA 4096 keys (too long). Use copy or .asc file instead."
+    },
+    "errors": {
+      "passphrasesMismatch": "Passphrases don't match",
+      "noUser": "No user"
+    }
+  },
+  "media": {
+    "load": "Load"
   }
 }

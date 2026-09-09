@@ -40,6 +40,7 @@ import {
 import {
   BaseDirectory,
   exists,
+  mkdir,
   readFile,
   writeFile,
 } from "@tauri-apps/plugin-fs";
@@ -55,57 +56,200 @@ import {
 import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 
 import type { AppLifecycleEvent } from "./tauri.types";
+import { appDataDir, join } from "@tauri-apps/api/path";
 
 /**
- * Filename of the encrypted keystore inside the platform-specific
- * application-data directory. Kept in sync with `secure-store/store.ts`.
+ * Detect whether we're running inside the Tauri runtime (desktop/mobile).
+ *
+ * Tauri v2 exposes `window.__TAURI_INTERNALS__` as the canonical marker.
+ * In plain browser dev mode (vite at localhost:1420) this object is absent,
+ * so all Tauri-dependent code paths must fall back to safe browser equivalents.
+ *
+ * NOTE: do NOT import from `@tauri-apps/api/core` here — the dynamic import
+ * resolution itself can throw when the polyfill isn't loaded. Pure DOM
+ * check is more robust.
  */
-const KEYSTORE_FILENAME = "keystore.qks";
+function isTauri(): boolean {
+  try {
+    return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  } catch {
+    return false;
+  }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, i + CHUNK);
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    out[i] = binary.charCodeAt(i);
+  }
+  return out;
+}
 
 /* ------------------------------------------------------------------ *
- * File operations (encrypted keystore)
+ * File operations (encrypted keystore) — multi-user
  * ------------------------------------------------------------------ */
 
+const KEYSTORE_DIR = "keystores";
+const INDEX_FILENAME = `${KEYSTORE_DIR}/index.json`;
+
+function userKeyFilename(userId: string): string {
+  // Defensive: refuse path-traversal in userId (it's a UUID from the
+  // server, so this should never happen, but a stray "../" would
+  // otherwise be able to escape the keystores directory).
+  if (userId.length === 0 || userId.includes("/") || userId.includes("\\") || userId.includes("..")) {
+    throw new Error(`Invalid userId for keystore path: ${userId}`);
+  }
+  return `${KEYSTORE_DIR}/${userId}.qks`;
+}
+
 /**
- * Read the raw ciphertext blob of the keystore from
- * `<app_data_dir>/keystore.qks`.
+ * Ensure `<app_data_dir>/keystores/` exists. Tauri plugin-fs's
+ * `writeFile` does NOT auto-create parent directories, so the very
+ * first write (of either a per-user keystore or the index) on a clean
+ * device would otherwise fail with "No such file or directory".
  *
- * Wraps `@tauri-apps/plugin-fs#readFile` with `BaseDirectory.AppData`.
- * On the Rust side this requires `fs:allow-read-file` scoped to
- * `$APPDATA/**`. The returned buffer is the binary container
- * understood by `secure-store/format.ts` (magic header + ChaCha20
- * ciphertext + nonce).
+ * Idempotent — `mkdir(..., { recursive: true })` is a no-op if the
+ * directory already exists. Any failure (e.g. permission denied) is
+ * swallowed here so the subsequent writeFile surfaces a clearer error.
+ */
+async function ensureKeystoresDir(): Promise<void> {
+  if (!isTauri()) return; // localStorage fallback needs no directories
+  try {
+    const base = await appDataDir();
+    const dir = await join(base, KEYSTORE_DIR);
+    await mkdir(dir, { recursive: true });
+  } catch {
+    // Either already exists (no-op), or writeFile will fail with a
+    // clearer message than "mkdir failed" later on.
+  }
+}
+
+/**
+ * Read the raw ciphertext blob of `<userId>`'s keystore from
+ * `<app_data_dir>/keystores/<userId>.qks`.
+ *
+ * In the browser, the blob lives in `localStorage["quant-keystore-<userId>"]`.
+ * On the Rust side this requires `fs:allow-appdata-read` (or
+ * `fs:allow-appdata-read-recursive`) scoped to `$APPDATA/keystores/**`.
  *
  * @throws Rejects if the file does not exist or cannot be read.
  */
-export async function readKeystoreBuffer(): Promise<Uint8Array> {
-  return readFile(KEYSTORE_FILENAME, { baseDir: BaseDirectory.AppData });
+export async function readKeystoreBuffer(userId: string): Promise<Uint8Array> {
+  if (!isTauri()) {
+    const b64 = localStorage.getItem(`quant-keystore-${userId}`);
+    if (b64 === null) {
+      throw new Error(`Keystore not found for user ${userId}`);
+    }
+    return base64ToBytes(b64);
+  }
+  return readFile(userKeyFilename(userId), { baseDir: BaseDirectory.AppData });
 }
 
 /**
- * Atomically write the encrypted keystore blob to
- * `<app_data_dir>/keystore.qks`.
+ * Atomically write the encrypted keystore blob for `<userId>` to
+ * `<app_data_dir>/keystores/<userId>.qks`. In the browser, the same
+ * data is base64-encoded into `localStorage["quant-keystore-<userId>"]`.
  *
- * Wraps `@tauri-apps/plugin-fs#writeFile`. On the Rust side this
- * requires `fs:allow-write-file` scoped to `$APPDATA/**`. The default
- * `create: true` option from the plugin is preserved: if the file does
- * not exist it is created, otherwise it is overwritten.
- *
- * @param data The serialized keystore container bytes.
+ * @param userId The owning user's UUID.
+ * @param data   The serialized keystore container bytes (the QKS1
+ *               header + ChaCha20 ciphertext produced by
+ *               `secure-store/format.ts`).
  */
-export async function writeKeystoreBuffer(data: Uint8Array): Promise<void> {
-  await writeFile(KEYSTORE_FILENAME, data, { baseDir: BaseDirectory.AppData });
+export async function writeKeystoreBuffer(userId: string, data: Uint8Array): Promise<void> {
+  if (!isTauri()) {
+    localStorage.setItem(`quant-keystore-${userId}`, bytesToBase64(data));
+    return;
+  }
+  await ensureKeystoresDir();
+  await writeFile(userKeyFilename(userId), data, { baseDir: BaseDirectory.AppData });
 }
 
 /**
- * Check whether a keystore file already exists in the app-data
- * directory. Used to decide whether to show the onboarding flow vs the
- * unlock screen.
+ * Remove the per-user encrypted keystore file from disk. No-op if
+ * the file does not exist (deleteKeystoreFile is idempotent — useful
+ * for "erase all data" flows that don't need to first check
+ * existence). The corresponding index entry is the caller's
+ * responsibility (see `removeIndexEntry` in store.ts).
  *
- * @returns `true` if `<app_data_dir>/keystore.qks` exists.
+ * Uses an absolute path constructed via `appDataDir + join(...)`
+ * instead of `BaseDirectory.AppData` because the Tauri v2 fs plugin's
+ * scoped permission identifiers (`fs:allow-appdata-remove`) aren't
+ * reliably recognised across plugin versions — falling back to an
+ * absolute path matches the `fs:allow-remove` (non-scoped) permission
+ * which is part of `fs:default` and works reliably everywhere.
  */
-export async function hasKeystore(): Promise<boolean> {
-  return exists(KEYSTORE_FILENAME, { baseDir: BaseDirectory.AppData });
+export async function deleteKeystoreFile(userId: string): Promise<void> {
+  if (!isTauri()) {
+    localStorage.removeItem(`quant-keystore-${userId}`);
+    return;
+  }
+  try {
+    const { remove } = await import("@tauri-apps/plugin-fs");
+    const base = await appDataDir();
+    const absolutePath = await join(base, userKeyFilename(userId));
+    await remove(absolutePath);
+  } catch {
+    // File doesn't exist or `remove` not available — treat as success.
+  }
+}
+
+/**
+ * Check whether `<userId>`'s keystore file already exists.
+ *
+ * @returns `true` if the file is present.
+ */
+export async function hasKeystore(userId: string): Promise<boolean> {
+  if (!isTauri()) {
+    return localStorage.getItem(`quant-keystore-${userId}`) !== null;
+  }
+  return exists(userKeyFilename(userId), { baseDir: BaseDirectory.AppData });
+}
+
+/* ------------------------------------------------------------------ *
+ * Index file (unencrypted metadata)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Read the unencrypted `keystores/index.json` file as raw bytes.
+ * Returns an empty Uint8Array when the file is missing — callers
+ * (see `readIndex` in store.ts) treat that as "no users registered".
+ */
+export async function readIndexBuffer(): Promise<Uint8Array> {
+  if (!isTauri()) {
+    const v = localStorage.getItem("quant-keystore-index");
+    if (v === null) return new Uint8Array(0);
+    return base64ToBytes(v);
+  }
+  try {
+    return await readFile(INDEX_FILENAME, { baseDir: BaseDirectory.AppData });
+  } catch {
+    return new Uint8Array(0);
+  }
+}
+
+/**
+ * Write the unencrypted `keystores/index.json` file. Replaces any
+ * existing content. The file is plain JSON (no encryption) — only
+ * userId + email + lastUsedAt metadata is stored here, no secrets.
+ */
+export async function writeIndexBuffer(data: Uint8Array): Promise<void> {
+  if (!isTauri()) {
+    localStorage.setItem("quant-keystore-index", bytesToBase64(data));
+    return;
+  }
+  await ensureKeystoresDir();
+  await writeFile(INDEX_FILENAME, data, { baseDir: BaseDirectory.AppData });
 }
 
 /* ------------------------------------------------------------------ *
@@ -124,6 +268,9 @@ export async function hasKeystore(): Promise<boolean> {
  * Used by the keystore export flow in `features/keyring/generate.ts`.
  */
 export async function writeFileBuffer(path: string, data: Uint8Array): Promise<void> {
+  if (!isTauri()) {
+    throw new Error("File picker not available in browser mode — use Tauri runtime for desktop features");
+  }
   await writeFile(path, data);
 }
 
@@ -142,6 +289,9 @@ export async function writeFileBuffer(path: string, data: Uint8Array): Promise<v
  *   of absolute file paths.
  */
 export async function pickFiles(multiple = false): Promise<string[] | null> {
+  if (!isTauri()) {
+    throw new Error("File picker not available in browser mode — use Tauri runtime for desktop features");
+  }
   const result = await openDialog({
     multiple,
     filters: [{ name: "All", extensions: ["*"] }],
@@ -156,20 +306,30 @@ export async function pickFiles(multiple = false): Promise<string[] | null> {
 }
 
 /**
- * Open a native "save as" dialog for a keystore backup.
+ * Open a native "save as" dialog for an arbitrary export file.
  *
  * Wraps `@tauri-apps/plugin-dialog#save`. On the Rust side this
- * requires `dialog:allow-save`. Only the `.qks` extension is offered.
+ * requires `dialog:allow-save`. Callers specify the default file name
+ * and, optionally, a set of extension filters shown in the dialog
+ * (e.g. `.qks` for the keystore backup, `.asc` / `.txt` for an
+ * ASCII-armored PGP key).
  *
- * @param defaultName Default file name suggested in the dialog.
+ * @param options.defaultPath Default file name suggested in the dialog.
+ * @param options.filters Optional file-type filters for the dialog.
  * @returns Selected absolute path, or `null` if the user cancelled.
  */
 export async function pickSaveFile(
-  defaultName: string,
+  options: {
+    defaultPath: string;
+    filters?: { name: string; extensions: string[] }[];
+  },
 ): Promise<string | null> {
+  if (!isTauri()) {
+    throw new Error("File picker not available in browser mode — use Tauri runtime for desktop features");
+  }
   return saveDialog({
-    defaultPath: defaultName,
-    filters: [{ name: "Keystore", extensions: ["qks"] }],
+    defaultPath: options.defaultPath,
+    ...(options.filters !== undefined ? { filters: options.filters } : {}),
   });
 }
 
@@ -193,6 +353,9 @@ export async function pickSaveFile(
  * @param body Notification body text.
  */
 export async function notify(title: string, body: string): Promise<void> {
+  if (!isTauri()) {
+    return;
+  }
   if (!(await ensureNotificationPermission())) {
     return;
   }
@@ -207,6 +370,9 @@ export async function notify(title: string, body: string): Promise<void> {
  * @returns `true` iff the OS reports the permission as `granted`.
  */
 export async function ensureNotificationPermission(): Promise<boolean> {
+  if (!isTauri()) {
+    return true;
+  }
   if (await isPermissionGranted()) {
     return true;
   }
@@ -239,6 +405,9 @@ export type DeepLinkRoute =
 export async function onDeepLink(
   handler: (urls: string[]) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    return () => {};
+  }
   return onOpenUrl((urls) => {
     handler(urls);
   });
@@ -308,6 +477,9 @@ export async function onAppEvent(
   event: AppLifecycleEvent,
   handler: () => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    return () => {};
+  }
   return listen(appEventName(event), () => {
     handler();
   });
@@ -323,6 +495,9 @@ export async function onAppEvent(
 export async function onLockScreenRequest(
   handler: () => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    return () => {};
+  }
   return listen("app://lock", () => {
     handler();
   });
@@ -347,5 +522,8 @@ export async function onLockScreenRequest(
  * for `tauri-plugin-stronghold` snapshots).
  */
 export async function getAppDataDir(): Promise<string> {
+  if (!isTauri()) {
+    throw new Error("App data dir only available in Tauri runtime");
+  }
   return invoke<string>("get_app_data_dir");
 }

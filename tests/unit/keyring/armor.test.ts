@@ -46,6 +46,16 @@ describe("keyring/armor", () => {
       expect(await isValidArmoredPrivateKey(pair.privateKeyArmored, PASSPHRASE)).toBe(true);
     });
 
+    it("returns true for an unencrypted key with an empty passphrase", async () => {
+      const unencrypted = await generateKeyPair(
+        { name: "Empty Passphrase User", email: "empty-passphrase@test.local" },
+        "",
+        "ecc",
+      );
+
+      expect(await isValidArmoredPrivateKey(unencrypted.privateKeyArmored, "")).toBe(true);
+    });
+
     it("returns false with a wrong passphrase", async () => {
       expect(
         await isValidArmoredPrivateKey(pair.privateKeyArmored, "definitely-wrong"),

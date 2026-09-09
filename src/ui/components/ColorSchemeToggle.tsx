@@ -1,7 +1,9 @@
 import { ActionIcon, useComputedColorScheme, useMantineColorScheme } from "@mantine/core";
 import { IconMoon, IconSun } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 
 export function ColorSchemeToggle(): JSX.Element {
+  const { t } = useTranslation();
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme("dark", {
     getInitialValueInEffect: true,
@@ -14,8 +16,8 @@ export function ColorSchemeToggle(): JSX.Element {
       variant="default"
       size="lg"
       radius="md"
-      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-      title={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      aria-label={t(isDark ? "common.a11y.switchToLight" : "common.a11y.switchToDark")}
+      title={t(isDark ? "common.a11y.switchToLight" : "common.a11y.switchToDark")}
     >
       {isDark ? <IconSun size={18} stroke={1.5} /> : <IconMoon size={18} stroke={1.5} />}
     </ActionIcon>

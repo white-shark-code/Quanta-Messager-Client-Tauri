@@ -1,0 +1,203 @@
+{
+  "common": {
+    "loading": "Đang tải…",
+    "error": "Lỗi",
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "back": "Quay lại",
+    "retry": "Thử lại",
+    "yes": "Có",
+    "no": "Không",
+    "a11y": {
+      "groupChat": "trò chuyện nhóm",
+      "privateChat": "trò chuyện riêng",
+      "switchToLight": "Chuyển sang giao diện sáng",
+      "switchToDark": "Chuyển sang giao diện tối"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Đăng nhập",
+      "email": "Email",
+      "password": "Mật khẩu",
+      "submit": "Đăng nhập",
+      "noAccount": "Chưa có tài khoản?",
+      "registerLink": "Đăng ký"
+    },
+    "register": {
+      "title": "Đăng ký",
+      "email": "Email",
+      "password": "Mật khẩu",
+      "confirmPassword": "Xác nhận mật khẩu",
+      "submit": "Tạo tài khoản",
+      "haveAccount": "Đã có tài khoản? Đăng nhập"
+    },
+    "unlock": {
+      "title": "Phiên đã hết hạn",
+      "description": "Phiên của bạn đã hết hạn. Nhập cụm mật khẩu keystore (để trống nếu chưa đặt) để tiếp tục.",
+      "passphrase": "Cụm mật khẩu",
+      "passphraseOptional": "Cụm mật khẩu (không bắt buộc)",
+      "submit": "Mở khóa"
+    },
+    "errors": {
+      "passwordMin": "Mật khẩu phải có ít nhất 8 ký tự",
+      "passwordsMismatch": "Mật khẩu không khớp",
+      "invalidUuid": "Định dạng UUID không hợp lệ",
+      "selfChat": "Không thể tạo cuộc trò chuyện với chính mình",
+      "notLoggedIn": "Chưa đăng nhập"
+    },
+    "logout": "Đăng xuất",
+    "setupKey": "Thiết lập khóa mã hóa của bạn",
+    "generateKey": "Tạo mới",
+    "importKey": "Nhập khóa hiện có",
+    "exportKey": "Xuất keystore",
+    "passphrase": "Cụm mật khẩu",
+    "passphrasesMismatch": "Các cụm mật khẩu không khớp",
+    "verifyPassphrase": "Cụm mật khẩu (để xác minh)"
+  },
+  "nav": {
+    "chats": "Các cuộc trò chuyện",
+    "newChat": "Cuộc trò chuyện mới",
+    "settings": "Cài đặt",
+    "keys": "Khóa"
+  },
+  "chats": {
+    "title": "Các cuộc trò chuyện",
+    "empty": "Chưa có cuộc trò chuyện nào",
+    "startNew": "Bắt đầu cuộc trò chuyện mới",
+    "loadMore": "Tải thêm",
+    "newChat": {
+      "title": "Cuộc trò chuyện mới",
+      "description": "Nhập UUID của người dùng bạn muốn trò chuyện. (Lời mời qua email không được hỗ trợ trong MVP — xem báo cáo backend #01.)",
+      "peerUuidLabel": "UUID người dùng đối tác",
+      "peerUuidPlaceholder": "550e8400-e29b-41d4-a716-446655440000",
+      "chatNameLabel": "Tên cuộc trò chuyện (không bắt buộc)",
+      "chatNamePlaceholder": "Mặc định: tiền tố UUID của đối tác",
+      "submit": "Tạo cuộc trò chuyện",
+      "cancel": "Hủy",
+      "errors": {
+        "notLoggedIn": "Chưa đăng nhập",
+        "invalidUuid": "Định dạng UUID không hợp lệ",
+        "selfChat": "Không thể tạo cuộc trò chuyện với chính mình"
+      }
+    },
+    "newGroup": {
+      "title": "Nhóm mới",
+      "e2eWarning": "Mã hóa E2E cho nhóm trong MVP chưa hoàn thiện. Khóa chung của nhóm sử dụng khóa công khai của người tạo (xem báo cáo #02). Thêm thành viên yêu cầu lệnh gọi API riêng — chưa được triển khai.",
+      "nameLabel": "Tên nhóm",
+      "submit": "Tạo nhóm",
+      "cancel": "Hủy",
+      "errors": {
+        "notLoggedIn": "Chưa đăng nhập",
+        "nameRequired": "Yêu cầu nhập tên nhóm",
+        "needKeyFirst": "Trước tiên hãy thiết lập khóa mã hóa của bạn (/setup-key)"
+      }
+    }
+  },
+  "messages": {
+    "send": "Gửi",
+    "typeMessage": "Nhập tin nhắn…",
+    "decrypting": "Đang giải mã…",
+    "locked": "🔒 Đã khóa",
+    "retry": "Thử lại",
+    "unlockToSend": "Mở khóa để gửi tin nhắn",
+    "verified": "Đã xác minh chữ ký",
+    "invalidSignature": "Chữ ký không hợp lệ",
+    "composer": {
+      "unlockFirst": "Mở khóa để gửi tin nhắn",
+      "placeholder": "Nhập tin nhắn…",
+      "sendTooltip": "Gửi (Enter)"
+    }
+  },
+  "settings": {
+    "title": "Cài đặt",
+    "profile": "Hồ sơ",
+    "appearance": "Giao diện",
+    "about": "Giới thiệu",
+    "email": "Email",
+    "userId": "ID người dùng",
+    "language": "Ngôn ngữ",
+    "theme": "Chủ đề",
+    "currentTheme": "Hiện tại: {{theme}}",
+    "pollingInterval": "Khoảng thời gian thăm dò (ms)",
+    "autoLock": "Tự động khóa khi không hoạt động",
+    "idleTimeout": "Thời gian chờ không hoạt động (ms)",
+    "notifications": "Thông báo",
+    "version": "v0.1.0 — alpha",
+    "aboutDescription": "Trình nhắn tin mã hóa E2E. Kiến trúc zero-knowledge."
+  },
+  "errors": {
+    "networkError": "Không có kết nối đến máy chủ",
+    "sessionExpired": "Phiên đã hết hạn, vui lòng đăng nhập lại",
+    "noAccess": "Không có quyền truy cập",
+    "notFound": "Không tìm thấy",
+    "setUpKeyFirst": "Trước tiên, hãy thêm khóa công khai của bạn trong Cài đặt",
+    "fileTooLarge": "Tệp quá lớn (tối đa 50 MB)",
+    "invalidData": "Dữ liệu hoặc chữ ký không hợp lệ",
+    "serverError": "Lỗi máy chủ, vui lòng thử lại sau"
+  },
+  "nav": {
+    "appName": "Quant",
+    "chats": "Các cuộc trò chuyện",
+    "newChat": "Cuộc trò chuyện mới",
+    "settings": "Cài đặt",
+    "keys": "Khóa"
+  },
+  "setupKey": {
+    "title": "Thiết lập khóa mã hóa của bạn",
+    "passphraseOptional": "Cụm mật khẩu (không bắt buộc)",
+    "passphraseImportLabel": "Cụm mật khẩu (không bắt buộc — chỉ khi khóa của bạn đã được mã hóa)",
+    "passphraseVerifyLabel": "Cụm mật khẩu (để xác minh)",
+    "sharePassphraseLabel": "Cụm mật khẩu keystore (không bắt buộc)",
+    "emptyPassphraseWarning": "⚠ Để trống cụm mật khẩu có nghĩa là bất kỳ ai có quyền truy cập vào tệp keystore đều có thể giải mã khóa riêng của bạn. Chỉ sử dụng trên các thiết bị đáng tin cậy có mã hóa toàn bộ ổ đĩa.",
+    "tabs": {
+      "generate": "Tạo mới",
+      "import": "Nhập khóa hiện có",
+      "export": "Xuất keystore",
+      "share": "Chia sẻ"
+    },
+    "generate": {
+      "description": "Tạo một cặp khóa PGP mới. Khóa riêng được lưu trữ mã hóa trên thiết bị của bạn. Khóa công khai được tải lên máy chủ.",
+      "algorithm": "Thuật toán khóa",
+      "eccLabel": "ECC (Curve25519)",
+      "rsaLabel": "RSA 4096",
+      "algorithmHelp": "ECC nhanh (≈100 ms) và được khuyến nghị cho các máy khách hiện đại. RSA 4096 chậm hơn (≈3-5 giây) nhưng hoạt động với phần mềm PGP cũ (GPG < 2.3).",
+      "submit": "Tạo và tiếp tục"
+    },
+    "import": {
+      "description": "Dán khóa riêng PGP ASCII-armored của bạn:",
+      "armoredLabel": "Khóa armored",
+      "armoredPlaceholder": "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+      "invalidKey": "Không phải khóa riêng hợp lệ",
+      "submit": "Nhập và tiếp tục",
+      "tip": "Mẹo: khối này cũng có thể chứa phần khóa công khai — nó sẽ được sử dụng nguyên trạng nếu có."
+    },
+    "export": {
+      "description": "Xuất keystore đã mã hóa của bạn dưới dạng tệp .qks.json để sao lưu:",
+      "submit": "Xuất keystore",
+      "savedTo": "Đã lưu vào {{path}}"
+    },
+    "share": {
+      "title": "Xử lý cực kỳ cẩn thận",
+      "warning1": "Chia sẻ khóa riêng của bạn đồng nghĩa với việc cấp toàn quyền truy cập vào các tin nhắn đã mã hóa của bạn.",
+      "warning2": "Bất kỳ ai có khóa này đều có thể giải mã mọi thứ từng được gửi cho bạn VÀ ký tin nhắn thay mặt bạn.",
+      "warning3": "Chỉ chia sẻ với các thiết bị BẠN SỞ HỮU. Sử dụng kênh đáng tin cậy.",
+      "passphraseLabel": "Cụm mật khẩu keystore",
+      "passphrasePlaceholder": "Để trống nếu khóa không có cụm mật khẩu",
+      "confirmCheckbox": "Tôi hiểu các rủi ro khi chia sẻ khóa riêng của mình",
+      "reveal": "Hiện khóa riêng",
+      "revealedLabel": "Khóa riêng đã armored",
+      "copy": "Sao chép",
+      "copied": "Đã sao chép",
+      "download": "Tải xuống .asc",
+      "qrWarning": "Mã QR có thể không quét đáng tin cậy cho các khóa RSA 4096 (quá dài). Hãy sử dụng sao chép hoặc tệp .asc."
+    },
+    "errors": {
+      "passphrasesMismatch": "Các cụm mật khẩu không khớp",
+      "noUser": "Không có người dùng"
+    }
+  },
+  "media": {
+    "load": "Tải"
+  }
+}

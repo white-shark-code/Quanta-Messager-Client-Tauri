@@ -49,6 +49,17 @@ describe("keyring/encrypt", () => {
     expect(alice.fingerprint).toMatch(/^[A-F0-9]{40}$/);
   });
 
+  it("generates and imports an unencrypted key with an empty passphrase", async () => {
+    const pair = await generateKeyPair(
+      { name: "Empty Passphrase User", email: "empty-passphrase@test.local" },
+      "",
+      "ecc",
+    );
+    const imported = await importPrivateKey(pair.privateKeyArmored, "");
+
+    expect(imported.isDecrypted()).toBe(true);
+  }, 30_000);
+
   it("generateKeyPair('rsa') produces a 4096-bit key pair", async () => {
     const pair = await generateKeyPair(
       { name: "RSA User", email: "rsa@test.local" },
@@ -75,25 +86,47 @@ describe("keyring/encrypt", () => {
     expect(result.verified).toBe(true);
   });
 
-  it("decryptText with a mismatched signature returns verified: false", async () => {
+  it("decryptText ignores the detached signature argument (backend-only artifact)", async () => {
+    // The `signature` parameter is no longer used for verification —
+    // it's the signature-of-ciphertext the backend stores for its
+    // zero-knowledge check, which is meaningless on the decrypt side
+    // (we have the private key, we can read the plaintext). Verification
+    // rides on the embedded signature inside the encrypted blob.
+    //
+    // Pass a deliberately wrong, structurally invalid signature and
+    // verify decrypt still succeeds AND verification of the embedded
+    // plaintext signature succeeds.
+    const plaintext = "Trusted message";
+    const { encrypted } = await encryptText(plaintext, [bobPub], alicePriv);
+    const garbageSignature = new TextEncoder().encode("not a real signature");
+
+    const result = await decryptText(encrypted, garbageSignature, alicePub, bobPriv);
+    expect(result.text).toBe(plaintext);
+    // Verified is determined by the embedded signature (which is good)
+    // because we no longer feed the detached one into openpgp.decrypt.
+    expect(result.verified).toBe(true);
+  });
+
+  it("decryptText with a tampered encrypted blob rejects (Modification detected)", async () => {
+    // Substitute the old "mismatched signature" test with a stronger one:
+    // a tampered ciphertext must fail. openpgp v6 enforces the
+    // OpenPGP modification-detection-code by default and throws
+    // `Modification detected` rather than returning garbage — that's
+    // exactly the security property we want from an encrypted message.
     const plaintext = "Trusted message";
     const { encrypted } = await encryptText(plaintext, [bobPub], alicePriv);
 
-    // Build a structurally valid detached signature that signs *different*
-    // content with the same signing key. openpgp will parse it fine, but
-    // verification against the ciphertext must fail.
-    const otherMessage = await openpgp.createMessage({ text: "different content" });
-    const wrongSigArmored: string = await openpgp.sign({
-      message: otherMessage,
-      signingKeys: alicePriv,
-      detached: true,
-      format: "armored",
-    });
-    const wrongSignature = new TextEncoder().encode(wrongSigArmored);
+    // Flip one byte inside the armored blob.
+    const tampered = new Uint8Array(encrypted);
+    const flipIdx = Math.min(tampered.length - 10, encrypted.length - 50);
+    if (tampered[flipIdx] !== undefined) {
+      tampered[flipIdx] = (tampered[flipIdx] ?? 0) ^ 0x01;
+    }
 
-    const result = await decryptText(encrypted, wrongSignature, alicePub, bobPriv);
-    expect(result.text).toBe(plaintext);
-    expect(result.verified).toBe(false);
+    const sigBytes = new Uint8Array(0);
+    await expect(
+      decryptText(tampered, sigBytes, alicePub, bobPriv),
+    ).rejects.toThrow(/modification detected/i);
   });
 
   it("decryptText with a wrong sender verification key returns verified: false", async () => {

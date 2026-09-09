@@ -146,14 +146,37 @@ export function getErrorMapping(status: number): ErrorMapping {
 }
 
 export function toUserMessage(err: unknown): string {
+  // ApiError → mapped status message OR detail
   if (err instanceof ApiError) {
     return ERROR_MAPPINGS[err.status]?.userMessage ?? err.detail;
   }
+  // NetworkError → "Нет связи с сервером"
   if (err instanceof NetworkError) {
     return "Нет связи с сервером";
   }
+  // Error → message
   if (err instanceof Error) {
     return err.message;
+  }
+  // String
+  if (typeof err === "string" && err.length > 0) {
+    return err;
+  }
+  // null / undefined
+  if (err === null) return "Неизвестная ошибка (null)";
+  if (err === undefined) return "Неизвестная ошибка (undefined)";
+  // Object — try to extract message field, then JSON-stringify (truncated)
+  if (typeof err === "object") {
+    const e = err as { message?: unknown; reason?: unknown; detail?: unknown };
+    if (typeof e.message === "string" && e.message.length > 0) return e.message;
+    if (typeof e.reason === "string" && e.reason.length > 0) return e.reason;
+    if (typeof e.detail === "string" && e.detail.length > 0) return e.detail;
+    try {
+      const j = JSON.stringify(err);
+      return j.length > 200 ? j.slice(0, 200) + "…" : j;
+    } catch {
+      // fall through
+    }
   }
   return "Неизвестная ошибка";
 }

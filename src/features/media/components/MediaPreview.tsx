@@ -11,6 +11,7 @@ import {
   Text,
 } from "@mantine/core"
 import { IconDownload, IconFile } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 import {
   downloadAndDecryptGroup,
   downloadAndDecryptPrivate,
@@ -26,6 +27,7 @@ export function MediaPreview({
   attachment,
   kind = "private",
 }: MediaPreviewProps) {
+  const { t } = useTranslation()
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -89,7 +91,7 @@ export function MediaPreview({
             Download
           </Button>
         ) : (
-          <Button onClick={handleClick} variant="light">Load</Button>
+          <Button onClick={handleClick} variant="light">{t("media.load")}</Button>
         )}
       </Group>
     </Paper>

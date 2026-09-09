@@ -27,8 +27,15 @@
  * `messageId`.
  *
  * `useDecryptedMessage` is `enabled` only when `keyringStore.privateKey`
- * is non-null. When the keyring is locked the hook stays idle and the
- * UI is expected to render a "🔒 Locked" placeholder.
+ * is non-null AND the encrypted payload is non-empty. The latter
+ * guards against two cases:
+ *   - pending / failed optimistic messages (`PendingMessage` always has
+ *     empty `encrypted_message` / `signature` — encryption hasn't
+ *     happened yet, or the send failed), and
+ *   - defensive: any real message where the server returned an empty
+ *     payload (shouldn't happen, but we shouldn't crash on it).
+ * When disabled the query stays idle and `data` stays `undefined`, so
+ * the UI is expected to render a "🔒 Locked" placeholder.
  *
  * MVP caveat (see `.agents/report_for_backend/01`): there is no
  * per-message sender-public-key lookup yet, so verification falls back
@@ -51,6 +58,7 @@ import type * as openpgp from "openpgp";
 
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import * as keyring from "@/features/keyring/encrypt";
+import { debugLog } from "@/lib/debug";
 
 import * as messagesApi from "./api";
 import type { DialogMessage, ListItems } from "./model";
@@ -138,14 +146,28 @@ async function tryDecrypt(
   }
 
   const encrypted = decodeBase64(msg.encrypted_message);
-  const signature = decodeBase64(msg.signature);
+  // Pre-migration messages have `signature: null`. The decrypt path
+  // accepts the empty Uint8Array as "no detached signature provided"
+  // — verification still runs on the embedded plaintext signature.
+  const signature =
+    msg.signature !== null && msg.signature.length > 0
+      ? decodeBase64(msg.signature)
+      : new Uint8Array(0);
 
   // `decryptText` throws on actual decrypt failure (no matching key,
   // corrupt ciphertext). Surface it as `null` so the UI can render a
-  // placeholder rather than crashing the whole message list.
+  // placeholder rather than crashing the whole message list — but
+  // capture the failure into the debug log first so we can debug it.
   try {
     return await keyring.decryptText(encrypted, signature, senderKey, privateKey);
-  } catch {
+  } catch (e) {
+    void debugLog("Decrypt message", e, {
+      messageId: msg.id,
+      encryptedLen: encrypted.length,
+      signatureLen: signature.length,
+      hasSenderKey: senderKey !== null,
+      hasPrivateKey: privateKey !== null,
+    });
     return null;
   }
 }
@@ -263,9 +285,11 @@ export function useGroupMessages(
  * StrictMode double-invokes and concurrent renders don't run the
  * OpenPGP work twice.
  *
- * `enabled` is gated on `keyringStore.privateKey !== null` — while
- * locked the query stays idle and `data` stays `undefined`, so the UI
- * should render a "🔒 Locked" placeholder.
+ * `enabled` is gated on `keyringStore.privateKey !== null` AND a
+ * non-empty `encryptedMessage` — while locked, or for pending/failed
+ * optimistic messages that haven't been encrypted yet, the query
+ * stays idle and `data` stays `undefined`, so the UI should render a
+ * "🔒 Locked" placeholder.
  *
  * `staleTime: Infinity` because the plaintext of a given `messageId`
  * never changes; React Query won't refetch on remount.
@@ -280,7 +304,7 @@ export function useDecryptedMessage(
 
   return useQuery<DecryptedMessage | null, Error>({
     queryKey: ["message-decrypt", messageId],
-    enabled: privateKey !== null,
+    enabled: privateKey !== null && encryptedMessage.length > 0,
     staleTime: Infinity,
     queryFn: async (): Promise<DecryptedMessage | null> => {
       // Build a minimal stub so we can reuse `decryptMessage`. Only the

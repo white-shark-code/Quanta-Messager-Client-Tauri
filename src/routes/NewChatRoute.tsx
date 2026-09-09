@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, Button, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
+import { useTranslation } from "react-i18next";
 
 import { useCreatePrivateChat } from "@/features/chats/queries";
 import { useSessionStore } from "@/features/auth/sessionStore";
@@ -18,6 +19,7 @@ import { toUserMessage } from "@/infra/error";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function NewChatRoute(): JSX.Element {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const createChat = useCreatePrivateChat();
   const currentUser = useSessionStore((s) => s.user);
@@ -28,15 +30,15 @@ export function NewChatRoute(): JSX.Element {
   async function handleSubmit(): Promise<void> {
     setValidationError(null);
     if (currentUser === null) {
-      setValidationError("Not logged in");
+      setValidationError(t("chats.newChat.errors.notLoggedIn"));
       return;
     }
     if (peerUuid === currentUser.id) {
-      setValidationError("Can't create chat with yourself");
+      setValidationError(t("chats.newChat.errors.selfChat"));
       return;
     }
     if (!UUID_REGEX.test(peerUuid)) {
-      setValidationError("Invalid UUID format");
+      setValidationError(t("chats.newChat.errors.invalidUuid"));
       return;
     }
     try {
@@ -55,28 +57,28 @@ export function NewChatRoute(): JSX.Element {
   return (
     <Paper p="md" maw={500} mx="auto" mt={40}>
       <Title order={2} mb="md">
-        New chat
+        {t("chats.newChat.title")}
       </Title>
       <Stack>
         <Text size="sm" c="dimmed">
-          Enter the UUID of the user you want to chat with. (Email-based invites are not supported in MVP — see backend report #01.)
+          {t("chats.newChat.description")}
         </Text>
         <TextInput
-          label="Peer user UUID"
-          placeholder="550e8400-e29b-41d4-a716-446655440000"
+          label={t("chats.newChat.peerUuidLabel")}
+          placeholder={t("chats.newChat.peerUuidPlaceholder")}
           value={peerUuid}
           onChange={(e) => setPeerUuid(e.currentTarget.value)}
           required
         />
         <TextInput
-          label="Chat name (optional)"
-          placeholder="Default: peer UUID prefix"
+          label={t("chats.newChat.chatNameLabel")}
+          placeholder={t("chats.newChat.chatNamePlaceholder")}
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
         />
         {displayError !== null && <Alert color="red">{displayError}</Alert>}
         <Button onClick={() => void handleSubmit()} loading={createChat.isPending}>
-          Create chat
+          {t("chats.newChat.submit")}
         </Button>
       </Stack>
     </Paper>

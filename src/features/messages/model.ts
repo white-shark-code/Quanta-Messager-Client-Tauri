@@ -16,8 +16,13 @@ export interface Message {
   owner_id: string;
   /** Base64-encoded `Uint8Array` — PGP-encrypted ciphertext. */
   encrypted_message: string;
-  /** Base64-encoded `Uint8Array` — detached PGP signature. */
-  signature: string;
+  /**
+   * ASCII-armored detached PGP signature. Nullable for messages
+   * written before the backend gained a `signature` column (those
+   * pre-date the migration in `6f8a4d2e9c1b`). New messages are
+   * always non-null.
+   */
+  signature: string | null;
   /** ISO-8601 timestamp string. */
   creation_datetime: string;
 }

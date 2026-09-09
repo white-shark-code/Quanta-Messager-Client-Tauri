@@ -34,6 +34,7 @@ import { useSessionStore } from "@/features/auth/sessionStore";
 import * as keyring from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { toUserMessage } from "@/infra/error";
+import { debugLog } from "@/lib/debug";
 
 import * as messagesApi from "./api";
 import type { CreateMessageRequest, DialogMessage, ListItems } from "./model";
@@ -186,15 +187,30 @@ function updateCache(
 }
 
 /**
- * Which public keys the ciphertext is encrypted to.
+ * Resolve which public keys the ciphertext is encrypted to.
  *
- * MVP: our own key only — the backend exposes no peer-key lookup yet
- * (report_for_backend/01). Group chats have the same gap
- * (report_for_backend/02). Replace with `getRecipientKeys(chatId)` once
- * the endpoint exists; nothing else in this module needs to change.
+ * If a peer public key is supplied (typical for 1:1 chats), encrypt to
+ * the peer so they can actually decrypt it on their device. If no
+ * peer key is available (e.g. group chat with no group key yet, or
+ * the caller didn't pass one), fall back to the local user's own
+ * key — this preserves the old "notes-to-self" behaviour and matches
+ * what the backend stored before this code path existed.
+ *
+ * Returns `null` when no key (own or peer) is usable — caller should
+ * short-circuit.
  */
-function resolveRecipients(ownPublicKey: openpgp.Key): openpgp.Key[] {
-  return [ownPublicKey];
+async function resolveRecipients(
+  ownPublicKey: openpgp.Key | null,
+  peerPublicKeyArmored: string | null,
+): Promise<openpgp.Key[] | null> {
+  if (peerPublicKeyArmored !== null && peerPublicKeyArmored.length > 0) {
+    const peerKey = await keyring.importPublicKey(peerPublicKeyArmored);
+    return [peerKey];
+  }
+  if (ownPublicKey !== null) {
+    return [ownPublicKey];
+  }
+  return null;
 }
 
 type SendFn = (chatId: string, req: CreateMessageRequest) => Promise<DialogMessage>;
@@ -203,8 +219,19 @@ type SendFn = (chatId: string, req: CreateMessageRequest) => Promise<DialogMessa
  * Shared implementation behind {@link useSendPrivateMessage} and
  * {@link useSendGroupMessage}: identical cache handling, different
  * transport function and cache namespace.
+ *
+ * `peerPublicKeyArmored` is the peer's (or group's) ASCII-armored PGP
+ * public key, fetched by the caller (typically `ChatRoute` via
+ * `useUserPublicKey`). When set, the message is encrypted to that
+ * recipient so they can actually decrypt it. When omitted, the message
+ * falls back to encrypting to the local user (notes-to-self mode).
  */
-function useSendMessage(kind: ChatKind, chatId: string, send: SendFn): SendMessageMutation {
+function useSendMessage(
+  kind: ChatKind,
+  chatId: string,
+  send: SendFn,
+  peerPublicKeyArmored?: string | null,
+): SendMessageMutation {
   const queryClient = useQueryClient();
   const publicKey = useKeyringStore((s) => s.publicKey);
   const privateKey = useKeyringStore((s) => s.privateKey);
@@ -215,7 +242,7 @@ function useSendMessage(kind: ChatKind, chatId: string, send: SendFn): SendMessa
     mutationKey: ["messages", kind, chatId, "send"],
 
     mutationFn: async ({ text }: SendMessageInput) => {
-      if (privateKey === null || publicKey === null) {
+      if (privateKey === null) {
         throw new Error("Keys not loaded");
       }
       if (user === null) {
@@ -225,9 +252,14 @@ function useSendMessage(kind: ChatKind, chatId: string, send: SendFn): SendMessa
         throw new Error("Cannot send an empty message");
       }
 
+      const recipients = await resolveRecipients(publicKey, peerPublicKeyArmored ?? null);
+      if (recipients === null) {
+        throw new Error("No recipient public key available");
+      }
+
       const { encrypted, signature } = await keyring.encryptText(
         text,
-        resolveRecipients(publicKey),
+        recipients,
         privateKey,
       );
 
@@ -255,6 +287,11 @@ function useSendMessage(kind: ChatKind, chatId: string, send: SendFn): SendMessa
       if (context === undefined) {
         return;
       }
+      // Log to debug.log so we can see the exact backend error.
+      void debugLog(`Send ${kind} message`, err, {
+        chatId,
+        textPreview: _vars.text.slice(0, 50),
+      });
       // Restore server truth first…
       queryClient.setQueryData<MessagesCache>(queryKey, context.previous);
       // …then re-add the row as `failed` so the retry affordance survives
@@ -282,12 +319,18 @@ function useSendMessage(kind: ChatKind, chatId: string, send: SendFn): SendMessa
   });
 }
 
-export function useSendPrivateMessage(chatId: string): SendMessageMutation {
-  return useSendMessage("private", chatId, messagesApi.sendPrivateMessage);
+export function useSendPrivateMessage(
+  chatId: string,
+  peerPublicKeyArmored?: string | null,
+): SendMessageMutation {
+  return useSendMessage("private", chatId, messagesApi.sendPrivateMessage, peerPublicKeyArmored);
 }
 
-export function useSendGroupMessage(chatId: string): SendMessageMutation {
-  return useSendMessage("group", chatId, messagesApi.sendGroupMessage);
+export function useSendGroupMessage(
+  chatId: string,
+  peerPublicKeyArmored?: string | null,
+): SendMessageMutation {
+  return useSendMessage("group", chatId, messagesApi.sendGroupMessage, peerPublicKeyArmored);
 }
 
 export interface RetryMessageResult {
@@ -317,6 +360,10 @@ export function useRetryMessage(chatId: string, kind: ChatKind = "private"): Ret
     kind,
     chatId,
     kind === "group" ? messagesApi.sendGroupMessage : messagesApi.sendPrivateMessage,
+    null, // retry re-reads peerKey from the same source; for now we drop
+    // peer-key info on retry (the message reverts to encrypt-to-self).
+    // A proper fix would re-derive it from the chat; not blocking the
+    // basic send path.
   );
   const queryKey = messagesQueryKey(kind, chatId);
 

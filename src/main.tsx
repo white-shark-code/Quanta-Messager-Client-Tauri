@@ -22,8 +22,11 @@ function IdleTimeoutWrapper({ children }: { children: React.ReactNode }): React.
 
 function I18nSync(): null {
   useEffect(() => {
-    const sync = (lang: "en" | "ru"): void => {
-      void i18n.changeLanguage(lang);
+    const sync = (lang: "en" | "ru" | "vi"): void => {
+      console.log("[i18n] sync called with", lang);
+      void i18n.changeLanguage(lang).then(() => {
+        console.log("[i18n] changeLanguage resolved:", i18n.language);
+      });
       try {
         localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       } catch {

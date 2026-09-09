@@ -3,15 +3,16 @@ import { initReactI18next } from "react-i18next";
 
 import en from "./locales/en.json";
 import ru from "./locales/ru.json";
+import vi from "./locales/vi.json";
 
-export type SupportedLanguage = "en" | "ru";
+export type SupportedLanguage = "en" | "ru" | "vi";
 
 const LANGUAGE_STORAGE_KEY = "quant-lang";
 
 function readStoredLanguage(): SupportedLanguage | null {
   try {
     const raw = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return raw === "en" || raw === "ru" ? raw : null;
+    return raw === "en" || raw === "ru" || raw === "vi" ? raw : null;
   } catch {
     return null;
   }
@@ -23,6 +24,7 @@ void i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     ru: { translation: ru },
+    vi: { translation: vi },
   },
   lng: stored ?? "ru",
   fallbackLng: "ru",

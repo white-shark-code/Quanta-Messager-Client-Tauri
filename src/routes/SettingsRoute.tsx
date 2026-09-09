@@ -2,24 +2,26 @@
  * Settings route (TASK-081).
  *
  * Tabbed settings page per `docs/design.md` §9.2:
- *   - Profile — current user from `sessionStore` + logout.
- *   - Keys    — public-key fingerprint from `keyringStore`.
+ *   - Profile    — current user from `sessionStore` + logout.
  *   - Appearance — theme / language / polling / auto-lock / notifications.
- *   - About   — version banner.
+ *   - About      — version banner.
+ *
+ * Key management lives exclusively on `/setup-key` (Generate / Import /
+ * Export / Share tabs). It is not surfaced here.
  *
  * All persisted settings are written through `useSettingsStore.set`,
  * which mirrors them to the Tauri LazyStore on disk.
  */
 
+import { useState } from "react";
 import {
-  ActionIcon,
-  Alert,
   Badge,
   Button,
+  Checkbox,
   Code,
-  CopyButton,
   Divider,
   Group,
+  Modal,
   NumberInput,
   Paper,
   SegmentedControl,
@@ -27,115 +29,25 @@ import {
   Switch,
   Tabs,
   Text,
-  Textarea,
   Title,
-  Tooltip,
 } from "@mantine/core";
-import { IconCheck, IconCopy, IconLogout } from "@tabler/icons-react";
-import { useState } from "react";
+import { useDisclosure } from "@mantine/hooks";
+import { IconLogout } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import { changePublicKey } from "@/features/auth/api";
 import { useSessionStore } from "@/features/auth/sessionStore";
-import { isValidArmoredPublicKey } from "@/features/keyring/armor";
-import { importPublicKey } from "@/features/keyring/encrypt";
+import { deleteKeystoreForUser } from "@/features/keyring/generate";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { useSettingsStore } from "@/features/settings/settingsStore";
 import { ColorSchemeToggle } from "@/ui/components/ColorSchemeToggle";
 
-/**
- * Tab that replaces the local public key with a pasted armored PGP key.
- *
- * Per TASK-082: the private key is intentionally NOT touched — the
- * backend is told about the new public key, the local store is updated
- * in-place. Re-keying (private key rotation) is a separate flow handled
- * by re-running `SetupKeyRoute`.
- */
-function ChangePublicKeyTab(): JSX.Element {
-  const [armored, setArmored] = useState("");
-  const [valid, setValid] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  function handleValidate(): void {
-    setValid(isValidArmoredPublicKey(armored));
-  }
-
-  async function handleSubmit(): Promise<void> {
-    setError(null);
-    setSuccess(false);
-    if (!valid) {
-      setError("Key not valid");
-      return;
-    }
-    setBusy(true);
-    try {
-      await changePublicKey(armored);
-      const pubKey = await importPublicKey(armored);
-      useKeyringStore.setState({
-        publicKey: pubKey,
-        publicKeyArmored: armored,
-        fingerprint: pubKey.getFingerprint().toUpperCase(),
-      });
-      setSuccess(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Paper withBorder p="md">
-      <Stack>
-        <Text fw={500}>Replace public key</Text>
-        <Text size="sm" c="dimmed">
-          Paste an ASCII-armored PGP public key. Your private key remains
-          unchanged.
-        </Text>
-        <Textarea
-          label="Armored public key"
-          placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----"
-          autosize
-          minRows={4}
-          maxRows={10}
-          value={armored}
-          onChange={(e) => {
-            setArmored(e.currentTarget.value);
-            setValid(null);
-          }}
-        />
-        <Group>
-          <Button variant="default" onClick={handleValidate}>
-            Validate
-          </Button>
-          {valid !== null &&
-            (valid ? (
-              <Badge color="green">Valid</Badge>
-            ) : (
-              <Badge color="red">Invalid</Badge>
-            ))}
-        </Group>
-        {error !== null && <Alert color="red">{error}</Alert>}
-        {success && <Alert color="green">Public key updated</Alert>}
-        <Button
-          onClick={() => void handleSubmit()}
-          loading={busy}
-          disabled={!valid}
-        >
-          Update public key
-        </Button>
-      </Stack>
-    </Paper>
-  );
-}
-
 export function SettingsRoute(): JSX.Element {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = useSessionStore((s) => s.user);
   const lock = useSessionStore((s) => s.lock);
-  const fingerprint = useKeyringStore((s) => s.fingerprint);
+  const clearKeyring = useKeyringStore((s) => s.clear);
   const theme = useSettingsStore((s) => s.theme);
   const setSetting = useSettingsStore((s) => s.set);
   const language = useSettingsStore((s) => s.language);
@@ -144,32 +56,47 @@ export function SettingsRoute(): JSX.Element {
   const autoLockEnabled = useSettingsStore((s) => s.autoLockEnabled);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
 
-  function handleLogout(): void {
+  const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
+  const [eraseData, setEraseData] = useState(false);
+
+  async function handleLogout(): Promise<void> {
+    const uid = user?.id;
+    if (uid !== undefined && eraseData) {
+      try {
+        await deleteKeystoreForUser(uid);
+      } catch {
+        // best-effort — still proceed with logout
+      }
+    }
+    // `clear()` wipes the in-memory keyring entirely (public + private +
+    // fingerprint) so a subsequent login can't be misled by stale
+    // `publicKeyArmored` pointing at a deleted keystore file.
+    clearKeyring();
     lock();
+    setEraseData(false);
+    closeConfirm();
     navigate("/login", { replace: true });
   }
 
   return (
     <Stack gap="md" p="md" maw={800} mx="auto">
-      <Title order={2}>Settings</Title>
+      <Title order={2}>{t("settings.title")}</Title>
       <Tabs defaultValue="profile">
         <Tabs.List>
-          <Tabs.Tab value="profile">Profile</Tabs.Tab>
-          <Tabs.Tab value="keys">Keys</Tabs.Tab>
-          <Tabs.Tab value="change-key">Change key</Tabs.Tab>
-          <Tabs.Tab value="appearance">Appearance</Tabs.Tab>
-          <Tabs.Tab value="about">About</Tabs.Tab>
+          <Tabs.Tab value="profile">{t("settings.profile")}</Tabs.Tab>
+          <Tabs.Tab value="appearance">{t("settings.appearance")}</Tabs.Tab>
+          <Tabs.Tab value="about">{t("settings.about")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="profile" pt="md">
           <Paper withBorder p="md">
             <Stack>
               <Group justify="space-between">
-                <Text fw={500}>Email</Text>
+                <Text fw={500}>{t("settings.email")}</Text>
                 <Text>{user?.email ?? "—"}</Text>
               </Group>
               <Group justify="space-between">
-                <Text fw={500}>User ID</Text>
+                <Text fw={500}>{t("settings.userId")}</Text>
                 <Code>{user?.id ?? "—"}</Code>
               </Group>
               <Divider />
@@ -177,88 +104,44 @@ export function SettingsRoute(): JSX.Element {
                 color="red"
                 variant="light"
                 leftSection={<IconLogout size={16} />}
-                onClick={handleLogout}
+                onClick={openConfirm}
               >
-                Logout
+                {t("auth.logout")}
               </Button>
             </Stack>
           </Paper>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="keys" pt="md">
-          <Paper withBorder p="md">
-            <Stack>
-              <Group justify="space-between">
-                <Text fw={500}>Fingerprint</Text>
-                <Group gap="xs">
-                  <Code>{fingerprint ?? "No key set"}</Code>
-                  {fingerprint !== null && (
-                    <CopyButton value={fingerprint} timeout={1500}>
-                      {({ copied, copy }) => (
-                        <Tooltip
-                          label={copied ? "Copied" : "Copy fingerprint"}
-                          withArrow
-                          position="top"
-                        >
-                          <ActionIcon
-                            variant="subtle"
-                            color={copied ? "teal" : "gray"}
-                            onClick={copy}
-                            aria-label="Copy fingerprint"
-                          >
-                            {copied ? (
-                              <IconCheck size={14} />
-                            ) : (
-                              <IconCopy size={14} />
-                            )}
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
-                    </CopyButton>
-                  )}
-                </Group>
-              </Group>
-              <Text size="sm" c="dimmed">
-                Your public key fingerprint. Share this with your contacts to
-                verify your identity.
-              </Text>
-            </Stack>
-          </Paper>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="change-key" pt="md">
-          <ChangePublicKeyTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="appearance" pt="md">
           <Stack>
             <Paper withBorder p="md">
               <Stack>
-                <Text fw={500}>Theme</Text>
+                <Text fw={500}>{t("settings.theme")}</Text>
                 <Group>
                   <ColorSchemeToggle />
                   <Text size="sm" c="dimmed">
-                    Current: {theme}
+                    {t("settings.currentTheme", { theme })}
                   </Text>
                 </Group>
               </Stack>
             </Paper>
             <Paper withBorder p="md">
               <Stack>
-                <Text fw={500}>Language</Text>
+                <Text fw={500}>{t("settings.language")}</Text>
                 <SegmentedControl
                   value={language}
-                  onChange={(v) => void setSetting("language", v as "en" | "ru")}
+                  onChange={(v) => void setSetting("language", v as "en" | "ru" | "vi")}
                   data={[
                     { value: "ru", label: "Русский" },
                     { value: "en", label: "English" },
+                    { value: "vi", label: "Tiếng Việt" },
                   ]}
                 />
               </Stack>
             </Paper>
             <Paper withBorder p="md">
               <Stack>
-                <Text fw={500}>Polling interval (ms)</Text>
+                <Text fw={500}>{t("settings.pollingInterval")}</Text>
                 <NumberInput
                   value={pollingIntervalMs}
                   onChange={(v) =>
@@ -280,11 +163,11 @@ export function SettingsRoute(): JSX.Element {
                   onChange={(e) =>
                     void setSetting("autoLockEnabled", e.currentTarget.checked)
                   }
-                  label="Auto-lock on idle"
+                  label={t("settings.autoLock")}
                 />
                 {autoLockEnabled && (
                   <NumberInput
-                    label="Idle timeout (ms)"
+                    label={t("settings.idleTimeout")}
                     value={idleTimeoutMs}
                     onChange={(v) =>
                       void setSetting(
@@ -305,7 +188,7 @@ export function SettingsRoute(): JSX.Element {
                       e.currentTarget.checked,
                     )
                   }
-                  label="Notifications"
+                  label={t("settings.notifications")}
                 />
               </Stack>
             </Paper>
@@ -317,11 +200,9 @@ export function SettingsRoute(): JSX.Element {
             <Stack>
               <Text fw={500}>Quant Messenger</Text>
               <Text size="sm" c="dimmed">
-                v0.1.0 — alpha
+                {t("settings.version")}
               </Text>
-              <Text size="sm">
-                E2E-encrypted messenger. Zero-knowledge architecture.
-              </Text>
+              <Text size="sm">{t("settings.aboutDescription")}</Text>
               <Badge color="green" variant="light">
                 MIT License
               </Badge>
@@ -329,6 +210,30 @@ export function SettingsRoute(): JSX.Element {
           </Paper>
         </Tabs.Panel>
       </Tabs>
+
+      <Modal
+        opened={confirmOpened}
+        onClose={closeConfirm}
+        title={t("settings.logoutConfirmTitle")}
+        centered
+      >
+        <Stack>
+          <Text size="sm">{t("settings.logoutConfirmText")}</Text>
+          <Checkbox
+            label={t("settings.logoutEraseData")}
+            checked={eraseData}
+            onChange={(e) => setEraseData(e.currentTarget.checked)}
+          />
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={closeConfirm}>
+              {t("common.cancel")}
+            </Button>
+            <Button color="red" onClick={() => void handleLogout()}>
+              {t("auth.logout")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

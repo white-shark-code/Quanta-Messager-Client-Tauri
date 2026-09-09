@@ -1,14 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createBrowserRouter,
   Link,
-  Navigate,
-  useLocation,
   useNavigate,
-  type Location,
   type RouteObject,
 } from "react-router-dom";
 import { Anchor, Button, Paper, PasswordInput, Stack, TextInput, Title } from "@mantine/core";
+import { useTranslation } from "react-i18next";
 
 import { useLogin } from "@/features/auth/queries";
 import { toUserMessage } from "@/infra/error";
@@ -16,46 +14,46 @@ import { toUserMessage } from "@/infra/error";
 import { AppShellRoute } from "./AppShellRoute";
 import { ChatRoute } from "./ChatRoute";
 import { ChatsRoute } from "./ChatsRoute";
+import { CreateKeystoreRoute } from "./CreateKeystoreRoute";
 import { NewChatRoute } from "./NewChatRoute";
 import { NewGroupRoute } from "./NewGroupRoute";
 import { RequireAuth } from "./RequireAuth";
 import { SettingsRoute } from "./SettingsRoute";
 import { SetupKeyRoute } from "./SetupKeyRoute";
+import { UnlockRoute } from "./UnlockRoute";
 
 const Placeholder = ({ name }: { name: string }) => <div>Placeholder: {name}</div>;
 
 export function LoginRoute(): JSX.Element {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const { t } = useTranslation();
   const login = useLogin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const from =
-    (location.state as { from?: Location } | null)?.from?.pathname ?? "/chats";
 
   function handleSubmit(): void {
-    void login
-      .mutateAsync({ username: email, password })
-      .then(() => {
-        navigate(from, { replace: true });
-      });
+    // Navigation after success is handled by `useLogin.onSuccess` —
+    // which knows about disk state (keystore vs in-memory) and can route
+    // to /setup-key /unlock /chats accordingly. Doing a second
+    // `navigate(from)` here would clobber that decision and send a
+    // freshly-registered user to /chats even when there's no keystore.
+    void login.mutateAsync({ username: email, password });
   }
 
   return (
     <Paper p="md" maw={400} mx="auto" mt={80}>
       <Title order={2} mb="md">
-        Login
+        {t("auth.login.title")}
       </Title>
       <Stack>
         <TextInput
-          label="Email"
+          label={t("auth.login.email")}
           type="email"
           value={email}
           onChange={(e) => setEmail(e.currentTarget.value)}
           required
         />
         <PasswordInput
-          label="Password"
+          label={t("auth.login.password")}
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
           required
@@ -64,10 +62,10 @@ export function LoginRoute(): JSX.Element {
           <div style={{ color: "red" }}>{toUserMessage(login.error)}</div>
         )}
         <Button onClick={handleSubmit} loading={login.isPending}>
-          Sign in
+          {t("auth.login.submit")}
         </Button>
         <Anchor component={Link} to="/register" ta="center">
-          Don&apos;t have an account? Register
+          {t("auth.login.noAccount")} {t("auth.login.registerLink")}
         </Anchor>
       </Stack>
     </Paper>
@@ -75,7 +73,19 @@ export function LoginRoute(): JSX.Element {
 }
 
 const RegisterRoute = () => <Placeholder name="RegisterRoute" />;
-const UnlockAgainRoute = () => <Placeholder name="UnlockAgainRoute" />;
+
+function RootRedirect(): null {
+  const navigate = useNavigate();
+  const [decided, setDecided] = useState(false);
+
+  useEffect(() => {
+    if (decided) return;
+    setDecided(true);
+    navigate("/login", { replace: true });
+  }, [decided, navigate]);
+
+  return null;
+}
 
 const protectedRoutes: RouteObject[] = [
   {
@@ -102,12 +112,16 @@ const protectedRoutes: RouteObject[] = [
     path: "setup-key",
     element: <SetupKeyRoute />,
   },
+  {
+    path: "create-keystore",
+    element: <CreateKeystoreRoute />,
+  },
 ];
 
 const routes: RouteObject[] = [
   {
     path: "/",
-    element: <Navigate to="/chats" replace />,
+    element: <RootRedirect />,
   },
   {
     path: "/login",
@@ -119,7 +133,7 @@ const routes: RouteObject[] = [
   },
   {
     path: "/unlock",
-    element: <UnlockAgainRoute />,
+    element: <UnlockRoute />,
   },
   {
     element: (

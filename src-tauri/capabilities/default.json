@@ -1,6 +1,16 @@
 {
   "identifier": "default",
-  "description": "default permissions",
+  "description": "default permissions for Quant desktop — fs/dialog/notification/deep-link",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "fs:default",
+    "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write-recursive",
+    "fs:allow-remove",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "notification:default",
+    "deep-link:default"
+  ]
 }

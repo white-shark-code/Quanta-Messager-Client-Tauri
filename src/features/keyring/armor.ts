@@ -62,13 +62,14 @@ export function isValidArmoredPublicKey(armored: string): boolean {
  * Validate an armored private key AND its passphrase in one shot.
  *
  * Performs a full decrypt attempt — passphrase mismatches are surfaced as
- * `false`. We deliberately don't distinguish "wrong armor" from
- * "wrong passphrase" in the return value: a leaked oracle that says
- * "this looks like a real key but your password is wrong" is mildly
- * informative to an attacker. Callers that need the distinction should
- * catch the underlying error from `importPrivateKey` instead.
+ * `false`. Unencrypted private keys are accepted without a passphrase. We
+ * deliberately don't distinguish "wrong armor" from "wrong passphrase" in
+ * the return value: a leaked oracle that says "this looks like a real key but
+ * your password is wrong" is mildly informative to an attacker. Callers that
+ * need the distinction should catch the underlying error from
+ * `importPrivateKey` instead.
  *
- * @param armored ASCII-armored PGP private key block (passphrase-encrypted).
+ * @param armored ASCII-armored PGP private key block (passphrase-encrypted or unencrypted).
  * @param passphrase Passphrase the key was locked with.
  * @returns `true` only when the key parses AND unlocks cleanly.
  */
@@ -79,11 +80,14 @@ export async function isValidArmoredPrivateKey(
   if (typeof armored !== "string" || armored.trim().length === 0) {
     return false;
   }
-  if (typeof passphrase !== "string" || passphrase.length === 0) {
+  if (typeof passphrase !== "string") {
     return false;
   }
   try {
     const parsed = await openpgp.readPrivateKey({ armoredKey: armored });
+    if (parsed.isDecrypted()) {
+      return true;
+    }
     await openpgp.decryptKey({ privateKey: parsed, passphrase });
     return true;
   } catch {

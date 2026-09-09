@@ -1,7 +1,56 @@
+/**
+ * Unlock-again modal — re-prompt for the keystore passphrase and (if
+ * needed) a server re-login when the bearer is rejected with 401.
+ *
+ * Layout:
+ *
+ *   ┌──────────────────────────────────────────────────────┐
+ *   │ [x] Keystore passphrase           (always shown)     │
+ *   │ [ ] PGP passphrase differs        (opt-in checkbox)  │
+ *   │     └ PGP passphrase             (only if checked)   │
+ *   │ Email (locked to session)         (read-only)        │
+ *   │ Server password                   (optional re-auth) │
+ *   │ [Unlock]  or  [Unlock & re-authorize]                │
+ *   └──────────────────────────────────────────────────────┘
+ *
+ * Behaviour:
+ *   - If `serverPassword` is filled → call `reauth({userId, ...})`
+ *     which logs in against `/auth/login` (using the email from
+ *     `sessionStore.user.email`), updates the token in the keystore,
+ *     and refreshes `apiClient`. The userId is sourced from the
+ *     session store so the keystore re-encrypt targets the right file.
+ *   - Otherwise → call `unlockWithPassphrase(userId, pass, pgpPass?)`
+ *     which only re-loads the keys + bearer from the on-disk keystore
+ *     (no server round-trip).
+ *
+ * The email is read-only — in a multi-user environment each keystore
+ * belongs to exactly one user, and a typo in the email field would
+ * otherwise let the user re-authorize as a *different* account and
+ * quietly re-encrypt their own keystore with a foreign bearer. The
+ * server password alone is sufficient to express "re-auth this user";
+ * the email is locked to `sessionStore.user.email`.
+ *
+ * PGP passphrase defaults to the keystore passphrase when the checkbox
+ * is off — the typical case ("one passphrase for everything") needs no
+ * extra UI.
+ */
 import { useState } from "react";
-import { Alert, Button, Modal, PasswordInput, Stack, Text } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Divider,
+  Modal,
+  PasswordInput,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useTranslation } from "react-i18next";
 
+import { reauth } from "@/features/auth/reauth";
+import { useSessionStore } from "@/features/auth/sessionStore";
 import { unlockWithPassphrase } from "@/features/auth/unlock";
 import { toUserMessage } from "@/infra/error";
 
@@ -13,17 +62,57 @@ function UnlockModalTrigger({ onTrigger }: { onTrigger: () => void }): null {
 }
 
 export function UnlockAgainModal(): JSX.Element {
+  const { t } = useTranslation();
   const [opened, { open, close }] = useDisclosure(false);
+  const userEmail = useSessionStore((s) => s.user?.email ?? "");
   const [passphrase, setPassphrase] = useState("");
+  const [pgpDiffers, setPgpDiffers] = useState(false);
+  const [pgpPassphrase, setPgpPassphrase] = useState("");
+  const [serverPassword, setServerPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function handleUnlock(): Promise<void> {
+  const wantsReauth = serverPassword.length > 0;
+  const canSubmit =
+    passphrase.length > 0 &&
+    (!pgpDiffers || pgpPassphrase.length > 0) &&
+    serverPassword.length > 0;
+
+  function reset(): void {
+    setPassphrase("");
+    setPgpDiffers(false);
+    setPgpPassphrase("");
+    setServerPassword("");
+    setError(null);
+  }
+
+  async function handleSubmit(): Promise<void> {
     setError(null);
     setBusy(true);
     try {
-      await unlockWithPassphrase(passphrase);
-      setPassphrase("");
+      if (wantsReauth) {
+        const uid = useSessionStore.getState().user?.id;
+        if (uid === undefined) {
+          throw new Error("unlock-again: no userId in sessionStore");
+        }
+        await reauth({
+          userId: uid,
+          keystorePassphrase: passphrase,
+          ...(pgpDiffers ? { pgpPassphrase } : {}),
+          serverPassword,
+        });
+      } else {
+        const uid = useSessionStore.getState().user?.id;
+        if (uid === undefined) {
+          throw new Error("unlock-again: no userId in sessionStore");
+        }
+        await unlockWithPassphrase(
+          uid,
+          passphrase,
+          pgpDiffers ? pgpPassphrase : undefined,
+        );
+      }
+      reset();
       close();
     } catch (e) {
       setError(toUserMessage(e));
@@ -34,23 +123,68 @@ export function UnlockAgainModal(): JSX.Element {
 
   return (
     <>
-      <Modal opened={opened} onClose={close} title="Session expired" centered>
+      <Modal
+        opened={opened}
+        onClose={close}
+        title={t("auth.unlock.title")}
+        centered
+        onExitTransitionEnd={reset}
+      >
         <Stack>
-          <Text size="sm">Your session expired. Enter your keystore passphrase to continue.</Text>
+          <Text size="sm">{t("auth.unlock.description")}</Text>
+
           <PasswordInput
-            label="Passphrase"
+            label={t("auth.unlock.passphrase")}
+            placeholder={t("unlock.placeholder")}
             value={passphrase}
             onChange={(e) => setPassphrase(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !busy) {
-                e.preventDefault();
-                void handleUnlock();
-              }
-            }}
+            autoFocus
           />
-          {error && <Alert color="red">{error}</Alert>}
-          <Button onClick={() => void handleUnlock()} loading={busy}>
-            Unlock
+
+          <Checkbox
+            label={t("auth.unlock.pgpDiffers")}
+            checked={pgpDiffers}
+            onChange={(e) => setPgpDiffers(e.currentTarget.checked)}
+          />
+
+          {pgpDiffers && (
+            <PasswordInput
+              label={t("auth.unlock.pgpPassphrase")}
+              value={pgpPassphrase}
+              onChange={(e) => setPgpPassphrase(e.currentTarget.value)}
+            />
+          )}
+
+          <Divider label={t("auth.unlock.reauthDivider")} labelPosition="center" />
+
+          <Text size="xs" c="dimmed">
+            {t("auth.unlock.reauthHint")}
+          </Text>
+
+          <TextInput
+            label={t("auth.email")}
+            value={userEmail}
+            disabled
+            description={t("auth.unlock.emailLocked")}
+          />
+
+          <PasswordInput
+            label={t("auth.password")}
+            value={serverPassword}
+            onChange={(e) => setServerPassword(e.currentTarget.value)}
+            autoComplete="current-password"
+          />
+
+          {error !== null && <Alert color="red">{error}</Alert>}
+
+          <Button
+            onClick={() => void handleSubmit()}
+            loading={busy}
+            disabled={!canSubmit}
+          >
+            {wantsReauth
+              ? t("auth.unlock.submitReauth")
+              : t("auth.unlock.submit")}
           </Button>
         </Stack>
       </Modal>

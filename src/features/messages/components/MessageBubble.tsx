@@ -1,6 +1,7 @@
 import { Group, Paper, Text, Loader, ActionIcon, Tooltip, Stack } from "@mantine/core";
-import { IconLock, IconCheck, IconAlertCircle, IconRefresh } from "@tabler/icons-react";
+import { IconCheck, IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import dayjs, { type Dayjs } from "dayjs";
+import { useTranslation } from "react-i18next";
 
 import type { DialogMessage } from "../model";
 import type { PendingMessage } from "../mutations";
@@ -20,6 +21,7 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, chatId }: MessageBubbleProps) {
+  const { t } = useTranslation();
   const currentUser = useSessionStore((s) => s.user);
   const isMine = message.owner_id === currentUser?.id;
   const pending = isPending(message);
@@ -31,7 +33,9 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
     pending ? "" : message.signature,
   );
 
-  const text = pending ? message.text : decrypted?.text;
+  const text = pending
+    ? message.text
+    : (decrypted?.text ?? (decrypting ? t("messages.decrypting") : t("messages.locked")));
   const verified = pending ? true : (decrypted?.verified ?? false);
   const time: Dayjs = pending ? dayjs(message.createdAt) : dayjs(message.creation_datetime);
 
@@ -47,11 +51,7 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
       >
         <Stack gap={4}>
           <Text size="sm">
-            {text ?? (decrypting ? "Decrypting…" : (
-              <>
-                <IconLock size={12} /> Locked
-              </>
-            ))}
+            {text ?? (decrypting ? t("messages.decrypting") : t("messages.locked"))}
           </Text>
           <Group gap={4} justify="space-between">
             <Text size="xs" c="dimmed">
@@ -60,7 +60,7 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
             <Group gap={4}>
               {pending && message.status === "pending" && <Loader size={12} />}
               {pending && message.status === "failed" && (
-                <Tooltip label="Retry">
+                <Tooltip label={t("messages.retry")}>
                   <ActionIcon
                     size="xs"
                     variant="subtle"
@@ -74,12 +74,12 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
                 </Tooltip>
               )}
               {!pending && verified && (
-                <Tooltip label="Signature verified">
+                <Tooltip label={t("messages.verified")}>
                   <IconCheck size={12} color="green" />
                 </Tooltip>
               )}
               {!pending && !verified && (
-                <Tooltip label="Signature invalid">
+                <Tooltip label={t("messages.invalidSignature")}>
                   <IconAlertCircle size={12} color="red" />
                 </Tooltip>
               )}

@@ -9,7 +9,7 @@ export interface Settings {
   pollingIntervalMs: number;
   idleTimeoutMs: number;
   autoLockEnabled: boolean;
-  language: "en" | "ru";
+  language: "en" | "ru" | "vi";
   apiBaseUrl: string;
   notificationsEnabled: boolean;
 }

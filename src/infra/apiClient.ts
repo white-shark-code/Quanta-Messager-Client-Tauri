@@ -72,7 +72,10 @@ async function request<T>(
   const headers: Record<string, string> = { ...(options?.headers ?? {}) };
 
   let payload: BodyInit | undefined;
-  if (body instanceof FormData) {
+  if (body instanceof URLSearchParams) {
+    payload = body;
+    // fetch will set Content-Type automatically to application/x-www-form-urlencoded
+  } else if (body instanceof FormData) {
     payload = body;
   } else if (body !== undefined) {
     headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
@@ -174,6 +177,9 @@ export const apiClient = {
   },
   async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return request<T>("POST", path, body, options);
+  },
+  async postForm<T>(path: string, form: URLSearchParams, options?: RequestOptions): Promise<T> {
+    return request<T>("POST", path, form, options);
   },
   async postMultipart<T>(path: string, form: FormData, options?: RequestOptions): Promise<T> {
     return request<T>("POST", path, form, options);

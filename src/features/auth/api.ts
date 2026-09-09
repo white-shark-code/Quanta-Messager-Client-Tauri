@@ -25,8 +25,19 @@ export interface MeResponse {
   email: string;
 }
 
+/**
+ * Login with OAuth2 password form-encoded body.
+ *
+ * fastapi-users' default `/auth/login` endpoint uses
+ * `OAuth2PasswordRequestForm` which expects form-encoded
+ * (`application/x-www-form-urlencoded`) fields, not JSON.
+ * See: fastapi_users.router.auth.get_auth_router + BearerTransport.
+ */
 export function login(req: LoginRequest): Promise<LoginResponse> {
-  return apiClient.post<LoginResponse>("/auth/login", req);
+  const form = new URLSearchParams();
+  form.append("username", req.username);
+  form.append("password", req.password);
+  return apiClient.postForm<LoginResponse>("/auth/login", form);
 }
 
 export function register(req: RegisterRequest): Promise<RegisterResponse> {

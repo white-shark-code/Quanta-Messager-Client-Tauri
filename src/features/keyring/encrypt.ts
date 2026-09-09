@@ -17,6 +17,21 @@ import * as openpgp from "openpgp";
 import type { EncryptResult, KeyAlgorithm, KeyPair } from "./types";
 
 /**
+ * Convert an arbitrary thrown value (openpgp.js occasionally throws
+ * plain objects / non-Error values) into a human-readable string for
+ * inclusion in a rethrown `Error.message`. Truncated to keep logs sane.
+ */
+function errMsg(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  try {
+    return JSON.stringify(e).slice(0, 200);
+  } catch {
+    return String(e);
+  }
+}
+
+/**
  * Tracks whether `init()` already ran. openpgp's `config` is a global
  * singleton, so a second init would overwrite values with no benefit —
  * and could mask bugs in callers that double-init.
@@ -48,21 +63,46 @@ export async function init(): Promise<void> {
   // v6 `Config` interface doesn't declare it.
   Reflect.set(openpgp.config, "indentationLength", 2);
 
+  // Force classic algorithms (SHA-2 / AES-256) for compatibility with the
+  // pgpy 0.6 backend. openpgp.js v6 defaults to RFC 9580 variants
+  // (sha512 default hash, but v6 keys may carry sha3_256/brainpool
+  // subpacket preferences) which pgpy 0.6 can't verify. The `Config`
+  // interface declares both fields as scalar `enums.hash` / `enums.symmetric`
+  // values (not arrays), so we use Reflect.set to bypass the typed surface
+  // and pin the single canonical id: sha256 = 8, aes256 = 9.
+  // When pgpy is upgraded, revert these to the v6 defaults for stronger crypto.
+  Reflect.set(openpgp.config, "preferredHashAlgorithm", openpgp.enums.hash.sha256);
+  Reflect.set(
+    openpgp.config,
+    "preferredSymmetricAlgorithm",
+    openpgp.enums.symmetric.aes256,
+  );
+
   initialized = true;
 }
 
 /**
  * Generate a new PGP key pair, locked with `passphrase`.
  *
- * ECC keys (`curve25519Legacy`) are the default — they're smaller, faster,
- * and the RFC 9580 recommendation. RSA-4096 is offered for clients that
- * need to interoperate with very old OpenPGP implementations.
+ * ECC keys (`curve25519Legacy`) are the default — they're small, fast,
+ * and use SHA-2 self-signature hashes for compatibility with classic
+ * PGP implementations (GPG, pgpy 0.6, etc.). For broadest compatibility
+ * with very old OpenPGP implementations, RSA-4096 is offered.
+ *
+ * Both the ECC curve (`curve25519Legacy`, not the v6 v3-fingerprint
+ * `curve25519`) and the hash algorithm (SHA-256, pinned in `init()`)
+ * are deliberately kept on classic RFC 4880 algorithms because the
+ * server backend runs `pgpy 0.6` which can't verify RFC 9580-era
+ * signatures. If pgpy is upgraded, switch the curve back to
+ * `curve25519` and remove the `preferredHashAlgorithm` override in
+ * `init()` for stronger crypto.
  *
  * @param userInfo Identity embedded in the key (name + email).
  * @param passphrase Protects the private key; the user will need it on
- *                   every unlock. Empty string is rejected by openpgp
- *                   anyway, but we pass through and let it throw.
- * @param algorithm  `"ecc"` (default) or `"rsa"`.
+ *                   every unlock. An empty string leaves the private key
+ *                   unencrypted.
+ * @param algorithm  `"ecc"` (default, `curve25519Legacy`) or `"rsa"`
+ *                   (4096-bit).
  * @returns Armored strings + uppercase-hex fingerprint.
  */
 export async function generateKeyPair(
@@ -89,7 +129,15 @@ export async function generateKeyPair(
     Object.assign(opts, { type: "ecc" as const, curve: "curve25519Legacy" as const });
   }
 
-  const { privateKey, publicKey } = await openpgp.generateKey(opts);
+  let privateKey: string;
+  let publicKey: string;
+  try {
+    const result = await openpgp.generateKey(opts);
+    privateKey = result.privateKey;
+    publicKey = result.publicKey;
+  } catch (e) {
+    throw new Error(`Key generation failed: ${errMsg(e)}`, { cause: e });
+  }
 
   // openpgp v6 returns `string | Uint8Array` depending on `format`; we
   // pinned it to `"armored"` above so a runtime narrowing is enough.
@@ -100,7 +148,12 @@ export async function generateKeyPair(
   // We need a Key object to read the fingerprint. Re-parse the public
   // blob — it's cheap (~1ms) and avoids depending on internal openpgp
   // return shapes (generateKey may not expose the publicKey object directly).
-  const parsedPublicKey = await openpgp.readKey({ armoredKey: publicKey });
+  let parsedPublicKey: openpgp.Key;
+  try {
+    parsedPublicKey = await openpgp.readKey({ armoredKey: publicKey });
+  } catch (e) {
+    throw new Error(`openpgp.readKey (fingerprint) failed: ${errMsg(e)}`, { cause: e });
+  }
   const fingerprint = parsedPublicKey.getFingerprint().toUpperCase();
 
   return {
@@ -119,7 +172,11 @@ export async function importPublicKey(armored: string): Promise<openpgp.Key> {
   if (typeof armored !== "string" || armored.trim().length === 0) {
     throw new Error("importPublicKey: empty armored input");
   }
-  return openpgp.readKey({ armoredKey: armored });
+  try {
+    return await openpgp.readKey({ armoredKey: armored });
+  } catch (e) {
+    throw new Error(`openpgp.readKey failed: ${errMsg(e)}`, { cause: e });
+  }
 }
 
 /**
@@ -134,11 +191,23 @@ export async function importPrivateKey(
   if (typeof armored !== "string" || armored.trim().length === 0) {
     throw new Error("importPrivateKey: empty armored input");
   }
-  if (typeof passphrase !== "string" || passphrase.length === 0) {
-    throw new Error("importPrivateKey: empty passphrase");
+  if (typeof passphrase !== "string") {
+    throw new Error("importPrivateKey: passphrase must be a string");
   }
-  const parsed = await openpgp.readPrivateKey({ armoredKey: armored });
-  return openpgp.decryptKey({ privateKey: parsed, passphrase });
+  let parsed: openpgp.PrivateKey;
+  try {
+    parsed = await openpgp.readPrivateKey({ armoredKey: armored });
+  } catch (e) {
+    throw new Error(`openpgp.readPrivateKey failed: ${errMsg(e)}`, { cause: e });
+  }
+  if (parsed.isDecrypted()) {
+    return parsed;
+  }
+  try {
+    return await openpgp.decryptKey({ privateKey: parsed, passphrase });
+  } catch (e) {
+    throw new Error(`openpgp.decryptKey failed: ${errMsg(e)}`, { cause: e });
+  }
 }
 
 /**
@@ -154,19 +223,29 @@ export async function fingerprintOf(publicKeyArmored: string): Promise<string> {
 /**
  * Encrypt + sign a text message.
  *
- * The encrypted blob has the sender's signature embedded *inside* the
- * OpenPGP message. A separate detached signature is produced in parallel
- * and returned alongside — the backend stores both so the receiver can
- * verify authorship without needing the sender's public key locally at
- * message-store time.
+ * Produces TWO independent signatures over TWO different payloads — both
+ * signed by the sender — and both are needed end-to-end:
  *
- * `createMessage({ text })` defaults to `format: "utf8"`, which wraps the
- * text in a Literal Data Packet (UTF-8). That's what we want for text:
- * the receiver gets the original string back, including any trailing
- * newline handling.
+ *   1. **Embedded signature** inside the encrypted PGP message itself
+ *      (via `signingKeys` on `openpgp.encrypt`). This one is over the
+ *      *plaintext*. It rides along inside the ciphertext so any holder
+ *      of the sender's public key — including a recipient who decrypted
+ *      it — can verify the content's authenticity.
  *
- * @returns `{ encrypted, signature }` — both as `Uint8Array` (UTF-8 bytes
- *          of the armored output) for transport-agnostic consumption.
+ *   2. **Detached signature** over the *encrypted* armored blob. This
+ *      one is what the **zero-knowledge backend** stores alongside the
+ *      ciphertext and verifies on every send: the server never sees the
+ *      plaintext and therefore cannot verify against it, so it has to
+ *      verify against what it actually has — the armored ciphertext.
+ *
+ * `createMessage({ text })` defaults to `format: "utf8"`, which wraps
+ * the text in a Literal Data Packet (UTF-8). That's what we want for
+ * text: the receiver gets the original string back, including any
+ * trailing newline handling.
+ *
+ * @returns `{ encrypted, signature }` — both as `Uint8Array` (UTF-8
+ *          bytes of the armored output) for transport-agnostic
+ *          consumption.
  */
 export async function encryptText(
   text: string,
@@ -181,15 +260,6 @@ export async function encryptText(
 
   const message = await openpgp.createMessage({ text });
 
-  // openpgp's `encrypt`/`sign` return conditional types that depend on
-  // the generic `T` of the input `Message<T>`. With non-streaming inputs
-  // the runtime value is always a string for `format: "armored"`, but
-  // TypeScript-ESLint flags the assignment as "error typed" because the
-  // conditional `T extends WebStream<Data> ? ... : string` doesn't fully
-  // reduce through its plugin's type checker. Sequential awaits with
-  // explicit `string` annotations are the cleanest way to pin the types
-  // — and the round-trip is still effectively parallel because openpgp
-  // schedules the crypto work on its own pool.
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const encryptedArmored: string = await openpgp.encrypt({
     message,
@@ -197,9 +267,18 @@ export async function encryptText(
     signingKeys: signingKey,
     format: "armored",
   });
+
+  // Detached signature is over the *encrypted* armored blob, not the
+  // plaintext. The backend's `services.chech_signature_and_encryption`
+  // calls `gpg.verify_data(signature, encrypted_message)` — it has no
+  // way to verify against the plaintext without the recipient's
+  // private key. Sending a plaintext signature here would always fail.
+  // The plaintext signature is still embedded inside the encrypted
+  // blob (from `signingKeys` above) so the recipient can verify content.
+  const encryptedForSigning = await openpgp.createMessage({ text: encryptedArmored });
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const signatureArmored: string = await openpgp.sign({
-    message,
+    message: encryptedForSigning,
     signingKeys: signingKey,
     detached: true,
     format: "armored",
@@ -236,47 +315,33 @@ export async function decryptText(
     armoredMessage: decodeArmored(encrypted, "encrypted"),
   });
 
-  // Read the detached signature defensively — if the bytes don't even
-  // parse as armored PGP (corrupt transport, truncated upload, etc.) we
-  // still want to return the plaintext, but the message MUST be marked
-  // unverified: a signature the caller explicitly passed is canonical,
-  // so failing to parse it is a hard `verified: false`, not an
-  // excuse to fall back on whatever the encrypted blob happens to
-  // carry. Crypto verification of a *parsed* signature is checked
-  // separately by `checkSignaturesVerified`.
-  const detachedProvided = signature.byteLength > 0;
-  let detachedSignature: openpgp.Signature | undefined;
-  if (detachedProvided) {
-    try {
-      detachedSignature = await openpgp.readSignature({
-        armoredSignature: decodeArmored(signature, "signature"),
-      });
-    } catch {
-      detachedSignature = undefined;
-    }
-  }
+  // The `signature` argument is the signature of the *ciphertext*
+  // (produced by `encryptText` for the backend to verify). It is NOT
+  // a detached signature over the plaintext — passing it to
+  // `openpgp.decrypt({ signature })` would always fail because openpgp
+  // would treat it as a plaintext signature. Verification of the
+  // plaintext instead rides on the **embedded signature packet** that
+  // `encryptText` injects via `signingKeys` on `openpgp.encrypt`, which
+  // openpgp reads and verifies automatically when `verificationKeys` is
+  // passed — that array surfaces in `result.signatures`.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _signatureBytes = signature;
 
   const result = await openpgp.decrypt({
     message,
     decryptionKeys: decryptionKey,
     verificationKeys: sendersPublicKey,
     format: "utf8",
-    ...(detachedSignature !== undefined ? { signature: detachedSignature } : {}),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const text = await readMaybeStreamAsString(result.data);
 
-  // Strict verification: if a detached signature was supplied it MUST
-  // be a usable Signature object AND every signature (detached + any
-  // embedded) must verify. An empty signature argument is treated as
-  // "no signature provided" → fall back to whatever openpgp saw inside
-  // the message (which can still be useful for keys produced by other
-  // apps).
-  const verified =
-    !detachedProvided || detachedSignature !== undefined
-      ? await checkSignaturesVerified(result.signatures)
-      : false;
+  // `result.signatures` carries the embedded plaintext signature from
+  // the sender. Verification against the sender's public key
+  // (verificationKeys) happens automatically inside `openpgp.decrypt` —
+  // we just await each `verified` Promise and AND them together.
+  const verified = await checkSignaturesVerified(result.signatures);
   return { text, verified };
 }
 
@@ -329,9 +394,14 @@ export async function encryptFile(
     signingKeys: signingKey,
     format: "armored",
   });
+
+  // Sign the ENCRYPTED armored blob (detached) — see `encryptText` for
+  // the rationale. The backend verifies against ciphertext, not
+  // plaintext (zero-knowledge: it doesn't have the recipient keys).
+  const encryptedForSigning = await openpgp.createMessage({ text: encryptedArmored });
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const signatureArmored: string = await openpgp.sign({
-    message,
+    message: encryptedForSigning,
     signingKeys: signingKey,
     detached: true,
     format: "armored",
@@ -363,24 +433,18 @@ export async function decryptFile(
     armoredMessage: decodeArmored(encrypted, "encrypted"),
   });
 
-  // Same defensive parsing as `decryptText` — see comment there.
-  let detachedSignature: openpgp.Signature | undefined;
-  if (signature.byteLength > 0) {
-    try {
-      detachedSignature = await openpgp.readSignature({
-        armoredSignature: decodeArmored(signature, "signature"),
-      });
-    } catch {
-      detachedSignature = undefined;
-    }
-  }
+  // See `decryptText` for why `signature` is intentionally ignored
+  // here: it covers the ciphertext (for the backend), not the
+  // plaintext. Embedded signature rides inside the encrypted blob
+  // and is auto-verified via `verificationKeys`.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _signatureBytes = signature;
 
   const result = await openpgp.decrypt({
     message,
     decryptionKeys: decryptionKey,
     verificationKeys: sendersPublicKey,
     format: "binary",
-    ...(detachedSignature !== undefined ? { signature: detachedSignature } : {}),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument

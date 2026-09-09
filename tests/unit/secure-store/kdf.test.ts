@@ -25,6 +25,14 @@ describe("kdf (Argon2id)", () => {
     expect(k1).toEqual(k2);
   });
 
+  it("derives a 32-byte key for an empty passphrase", async () => {
+    const k1 = await deriveKey("", { ...FAST_PARAMS, salt: fixedSalt(17) });
+    const k2 = await deriveKey("", { ...FAST_PARAMS, salt: fixedSalt(17) });
+
+    expect(k1).toEqual(k2);
+    expect(k1).toHaveLength(32);
+  });
+
   it("derives a different key for different salts (same passphrase)", async () => {
     const k1 = await deriveKey("same-passphrase", { ...FAST_PARAMS, salt: fixedSalt(1) });
     const k2 = await deriveKey("same-passphrase", { ...FAST_PARAMS, salt: fixedSalt(2) });
