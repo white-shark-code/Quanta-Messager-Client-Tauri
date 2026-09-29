@@ -41,6 +41,13 @@ export interface KeyringState {
   fingerprint: string | null;
   /** In-memory only. Never persisted, cleared by `lock()`/`clear()`. */
   passphrase: string | null;
+  /**
+   * 32-байтный ChaCha20-ключ для локального диалог-стора.
+   * Хранится в base64 (одна каноничная форма с `KeystorePayload.dialogKey`).
+   * Ставится на unlock / setup ключа, стирается на `lock()` / `clear()`.
+   * Декодируется в `dialogStore` по требованию.
+   */
+  dialogKeyB64: string | null;
   error: string | null;
 
   setStatus: (status: KeyringStatus) => void;
@@ -48,9 +55,11 @@ export interface KeyringState {
     publicKeyArmored: string,
     privateKeyArmored: string,
     passphrase: string,
+    dialogKeyB64?: string,
   ) => Promise<void>;
-  setKeysFromPair: (pair: KeyPair, passphrase: string) => Promise<void>;
+  setKeysFromPair: (pair: KeyPair, passphrase: string, dialogKeyB64?: string) => Promise<void>;
   importPublicOnly: (publicKeyArmored: string) => Promise<void>;
+  setDialogKey: (dialogKeyB64: string | null) => void;
   lock: () => void;
   clear: () => void;
   setError: (msg: string | null) => void;
@@ -63,10 +72,18 @@ const emptyState = {
   publicKeyArmored: null,
   fingerprint: null,
   passphrase: null,
+  dialogKeyB64: null,
   error: null,
 } satisfies Omit<
   KeyringState,
-  "setStatus" | "setKeys" | "setKeysFromPair" | "importPublicOnly" | "lock" | "clear" | "setError"
+  | "setStatus"
+  | "setKeys"
+  | "setKeysFromPair"
+  | "importPublicOnly"
+  | "setDialogKey"
+  | "lock"
+  | "clear"
+  | "setError"
 >;
 
 function messageOf(err: unknown): string {
@@ -79,7 +96,7 @@ export const useKeyringStore = create<KeyringState>()(
 
     setStatus: (status) => set({ status }),
 
-    setKeys: async (publicKeyArmored, privateKeyArmored, passphrase) => {
+    setKeys: async (publicKeyArmored, privateKeyArmored, passphrase, dialogKeyB64) => {
       set({ error: null });
       try {
         const privateKey = await keyring.importPrivateKey(privateKeyArmored, passphrase);
@@ -91,6 +108,7 @@ export const useKeyringStore = create<KeyringState>()(
           publicKeyArmored,
           fingerprint: publicKey.getFingerprint().toUpperCase(),
           passphrase,
+          dialogKeyB64: dialogKeyB64 ?? null,
           error: null,
         });
       } catch (err) {
@@ -98,10 +116,10 @@ export const useKeyringStore = create<KeyringState>()(
       }
     },
 
-    setKeysFromPair: async (pair, passphrase) => {
+    setKeysFromPair: async (pair, passphrase, dialogKeyB64) => {
       await useKeyringStore
         .getState()
-        .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase);
+        .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase, dialogKeyB64);
     },
 
     importPublicOnly: async (publicKeyArmored) => {
@@ -115,6 +133,7 @@ export const useKeyringStore = create<KeyringState>()(
           publicKeyArmored,
           fingerprint: publicKey.getFingerprint().toUpperCase(),
           passphrase: null,
+          dialogKeyB64: null,
           error: null,
         });
       } catch (err) {
@@ -122,15 +141,21 @@ export const useKeyringStore = create<KeyringState>()(
       }
     },
 
-    // Dropping the `privateKey` reference is the only way to release the
-    // decrypted secret params in openpgp v6 (`clearPrivateParams` is a
-    // documented no-op there). `publicKey`/`publicKeyArmored`/`fingerprint`
-    // survive so the UI can keep showing identity while locked.
+    setDialogKey: (dialogKeyB64) => set({ dialogKeyB64 }),
+
+    // Сброс ссылки на `privateKey` — единственный способ освободить
+    // расшифрованные secret-параметры в openpgp v6 (`clearPrivateParams`
+    // там документированно no-op). `publicKey`/`publicKeyArmored`/
+    // `fingerprint` сохраняются, чтобы UI продолжал показывать
+    // идентичность на экране блокировки.
+    // `dialogKeyB64` тоже стирается — без него шифрованные блобы
+    // диалогов на диске не читаются до следующего unlock.
     lock: () =>
       set({
         status: "locked",
         privateKey: null,
         passphrase: null,
+        dialogKeyB64: null,
       }),
 
     clear: () => set({ ...emptyState }),

@@ -24,6 +24,7 @@ const SAMPLE_PAYLOAD: KeystorePayload = {
   publicKeyArmored:
     "-----BEGIN PGP PUBLIC KEY BLOCK-----\n...fake-armor...\n-----END PGP PUBLIC KEY BLOCK-----",
   fingerprint: "ABCD1234DEADBEEF5678EF90",
+  dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
 
 describe("format (keystore.qks binary layout)", () => {

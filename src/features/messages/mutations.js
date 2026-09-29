@@ -22,6 +22,7 @@
  */
 import { useMutation, useQueryClient, } from "@tanstack/react-query";
 import { useSessionStore } from "@/features/auth/sessionStore";
+import { appendDialog } from "@/features/dialog-store/store";
 import * as keyring from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { toUserMessage } from "@/infra/error";
@@ -170,10 +171,22 @@ function useSendMessage(kind, chatId, send, peerPublicKeyArmored) {
                     ? "encrypt-to-self"
                     : "none";
             console.log(`[send ${kind}] mode=${mode} peerArmoredLen=${peerArmored?.length ?? 0}`);
-            const { encrypted, signature } = await keyring.encryptText(text, recipients, privateKey);
+            if (publicKey === null) {
+                throw new Error("Own public key not loaded");
+            }
+            // Two ciphertexts of the same plaintext: the main one for the
+            // peer, the self-copy for the sender (readable on any of their
+            // devices sharing the keypair). The backend stores both and
+            // returns each viewer the copy they can decrypt.
+            const [main, selfCopy] = await Promise.all([
+                keyring.encryptText(text, recipients, privateKey),
+                keyring.encryptText(text, [publicKey], privateKey),
+            ]);
             return send(chatId, {
-                encrypted_message: bytesToBase64(encrypted),
-                signature: bytesToBase64(signature),
+                encrypted_message: bytesToBase64(main.encrypted),
+                signature: bytesToBase64(main.signature),
+                encrypted_message_self: bytesToBase64(selfCopy.encrypted),
+                signature_self: bytesToBase64(selfCopy.signature),
             });
         },
         onMutate: async ({ text }) => {
@@ -204,6 +217,15 @@ function useSendMessage(kind, chatId, send, peerPublicKeyArmored) {
         },
         onSuccess: (server, _vars, context) => {
             updateCache(queryClient, queryKey, (cache) => replacePending(cache, context.pending.id, server));
+            // Сохраняем подтверждённую сервером строку в локальный
+            // шифрованный стор. Fire-and-forget — UI не ждёт диск, при
+            // сбое следующий серверный fetch перезапишет через appendMany.
+            const ownerId = user?.id;
+            if (ownerId !== undefined) {
+                void appendDialog(ownerId, chatId, server).catch((e) => {
+                    void debugLog("dialog-store append after send", e, { chatId, messageId: server.id });
+                });
+            }
         },
         onSettled: (_data, error) => {
             // Only reconcile with the server when the send went through:

@@ -24,6 +24,7 @@ const emptyState = {
     publicKeyArmored: null,
     fingerprint: null,
     passphrase: null,
+    dialogKeyB64: null,
     error: null,
 };
 function messageOf(err) {
@@ -32,7 +33,7 @@ function messageOf(err) {
 export const useKeyringStore = create()(subscribeWithSelector((set) => ({
     ...emptyState,
     setStatus: (status) => set({ status }),
-    setKeys: async (publicKeyArmored, privateKeyArmored, passphrase) => {
+    setKeys: async (publicKeyArmored, privateKeyArmored, passphrase, dialogKeyB64) => {
         set({ error: null });
         try {
             const privateKey = await keyring.importPrivateKey(privateKeyArmored, passphrase);
@@ -44,6 +45,7 @@ export const useKeyringStore = create()(subscribeWithSelector((set) => ({
                 publicKeyArmored,
                 fingerprint: publicKey.getFingerprint().toUpperCase(),
                 passphrase,
+                dialogKeyB64: dialogKeyB64 ?? null,
                 error: null,
             });
         }
@@ -51,10 +53,10 @@ export const useKeyringStore = create()(subscribeWithSelector((set) => ({
             set({ ...emptyState, error: messageOf(err) });
         }
     },
-    setKeysFromPair: async (pair, passphrase) => {
+    setKeysFromPair: async (pair, passphrase, dialogKeyB64) => {
         await useKeyringStore
             .getState()
-            .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase);
+            .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase, dialogKeyB64);
     },
     importPublicOnly: async (publicKeyArmored) => {
         set({ error: null });
@@ -67,6 +69,7 @@ export const useKeyringStore = create()(subscribeWithSelector((set) => ({
                 publicKeyArmored,
                 fingerprint: publicKey.getFingerprint().toUpperCase(),
                 passphrase: null,
+                dialogKeyB64: null,
                 error: null,
             });
         }
@@ -74,14 +77,19 @@ export const useKeyringStore = create()(subscribeWithSelector((set) => ({
             set({ ...emptyState, error: messageOf(err) });
         }
     },
-    // Dropping the `privateKey` reference is the only way to release the
-    // decrypted secret params in openpgp v6 (`clearPrivateParams` is a
-    // documented no-op there). `publicKey`/`publicKeyArmored`/`fingerprint`
-    // survive so the UI can keep showing identity while locked.
+    setDialogKey: (dialogKeyB64) => set({ dialogKeyB64 }),
+    // Сброс ссылки на `privateKey` — единственный способ освободить
+    // расшифрованные secret-параметры в openpgp v6 (`clearPrivateParams`
+    // там документированно no-op). `publicKey`/`publicKeyArmored`/
+    // `fingerprint` сохраняются, чтобы UI продолжал показывать
+    // идентичность на экране блокировки.
+    // `dialogKeyB64` тоже стирается — без него шифрованные блобы
+    // диалогов на диске не читаются до следующего unlock.
     lock: () => set({
         status: "locked",
         privateKey: null,
         passphrase: null,
+        dialogKeyB64: null,
     }),
     clear: () => set({ ...emptyState }),
     setError: (msg) => set({ error: msg }),

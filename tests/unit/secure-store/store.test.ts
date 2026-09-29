@@ -109,6 +109,7 @@ const SAMPLE_PAYLOAD_A: KeystorePayload = {
   privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeA\n-----END PGP PRIVATE KEY BLOCK-----",
   publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeA\n-----END PGP PUBLIC KEY BLOCK-----",
   fingerprint: "FINGERPRINT_A",
+  dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
 
 const SAMPLE_PAYLOAD_B: KeystorePayload = {
@@ -118,6 +119,7 @@ const SAMPLE_PAYLOAD_B: KeystorePayload = {
   privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeB\n-----END PGP PRIVATE KEY BLOCK-----",
   publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeB\n-----END PGP PUBLIC KEY BLOCK-----",
   fingerprint: "FINGERPRINT_B",
+  dialogKey: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxw=",
 };
 
 /**

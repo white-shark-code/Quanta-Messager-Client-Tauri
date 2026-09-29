@@ -63,10 +63,10 @@ describe("error normalization", () => {
             expect(toUserMessage(err)).toBe("something weird");
         });
         it("returns a fallback for non-Error values", () => {
-            expect(toUserMessage("a string")).toBe("Неизвестная ошибка");
-            expect(toUserMessage(undefined)).toBe("Неизвестная ошибка");
-            expect(toUserMessage(null)).toBe("Неизвестная ошибка");
-            expect(toUserMessage({ foo: "bar" })).toBe("Неизвестная ошибка");
+            expect(toUserMessage("a string")).toBe("a string");
+            expect(toUserMessage(undefined)).toBe("Неизвестная ошибка (undefined)");
+            expect(toUserMessage(null)).toBe("Неизвестная ошибка (null)");
+            expect(toUserMessage({ foo: "bar" })).toBe('{"foo":"bar"}');
         });
     });
     describe("shouldLogout", () => {

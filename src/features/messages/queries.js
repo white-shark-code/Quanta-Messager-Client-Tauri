@@ -46,9 +46,12 @@
  * current user.
  */
 import { useInfiniteQuery, useQuery, useQueryClient, } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import * as keyring from "@/features/keyring/encrypt";
 import { debugLog } from "@/lib/debug";
+import { appendManyDialog } from "@/features/dialog-store/store";
+import { useSessionStore } from "@/features/auth/sessionStore";
 import * as messagesApi from "./api";
 /**
  * Module-scoped map. Keyed by `messageId` (UUID from the wire). Lives
@@ -147,7 +150,8 @@ const PAGE_LIMIT = 50;
  * usePrivateMessages
  * ------------------------------------------------------------------ */
 export function usePrivateMessages(chatId) {
-    return useInfiniteQuery({
+    const ownerId = useSessionStore((s) => s.user?.id);
+    const query = useInfiniteQuery({
         queryKey: ["messages", "private", chatId ?? ""],
         enabled: chatId !== undefined,
         initialPageParam: 0,
@@ -165,12 +169,33 @@ export function usePrivateMessages(chatId) {
             items: data.pages.flatMap((p) => p.items).reverse(),
         }),
     });
+    // Сохраняем каждую загрузку страниц в шифрованный локальный стор.
+    // Через ref отслеживаем id самого нового сообщения, чтобы не
+    // перезаписывать файл зря при изменении зависимостей useEffect.
+    const lastSeenIdRef = useRef(null);
+    useEffect(() => {
+        const data = query.data;
+        if (chatId === undefined || ownerId === undefined || data === undefined)
+            return;
+        const items = data.pages.flatMap((p) => p.items);
+        if (items.length === 0)
+            return;
+        const head = items[items.length - 1];
+        if (head === undefined || head.id === lastSeenIdRef.current)
+            return;
+        lastSeenIdRef.current = head.id;
+        void appendManyDialog(ownerId, chatId, items).catch((e) => {
+            void debugLog("dialog-store append from list", e, { chatId, count: items.length });
+        });
+    }, [chatId, ownerId, query.data]);
+    return query;
 }
 /* ------------------------------------------------------------------ *
  * useGroupMessages
  * ------------------------------------------------------------------ */
 export function useGroupMessages(chatId) {
-    return useInfiniteQuery({
+    const ownerId = useSessionStore((s) => s.user?.id);
+    const query = useInfiniteQuery({
         queryKey: ["messages", "group", chatId ?? ""],
         enabled: chatId !== undefined,
         initialPageParam: 0,
@@ -186,6 +211,26 @@ export function useGroupMessages(chatId) {
             items: data.pages.flatMap((p) => p.items).reverse(),
         }),
     });
+    const lastSeenIdRef = useRef(null);
+    useEffect(() => {
+        const data = query.data;
+        if (chatId === undefined || ownerId === undefined || data === undefined)
+            return;
+        const items = data.pages.flatMap((p) => p.items);
+        if (items.length === 0)
+            return;
+        const head = items[items.length - 1];
+        if (head === undefined || head.id === lastSeenIdRef.current)
+            return;
+        lastSeenIdRef.current = head.id;
+        void appendManyDialog(ownerId, chatId, items).catch((e) => {
+            void debugLog("dialog-store append from group list", e, {
+                chatId,
+                count: items.length,
+            });
+        });
+    }, [chatId, ownerId, query.data]);
+    return query;
 }
 /* ------------------------------------------------------------------ *
  * useDecryptedMessage — per-message lazy decryption

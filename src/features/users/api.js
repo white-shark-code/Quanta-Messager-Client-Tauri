@@ -6,6 +6,12 @@
  *   GET /users/{user_id}/public-key  →  PublicKeyResponse
  */
 import { apiClient } from "@/infra/apiClient";
+/** base64 → UTF-8 string (armored key text). */
+function b64ToText(b64) {
+    const binary = atob(b64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+}
 /**
  * Fetch the PGP public key of a single user by their UUID.
  *
@@ -13,6 +19,13 @@ import { apiClient } from "@/infra/apiClient";
  * distinguish "user doesn't exist" (404, propagated as an error)
  * from "user exists but hasn't uploaded a key" (200, `has_public_key: false`).
  */
-export function getUserPublicKey(userId) {
-    return apiClient.get(`/users/${userId}/public-key`);
+export async function getUserPublicKey(userId) {
+    const wire = await apiClient.get(`/users/${userId}/public-key`);
+    return {
+        user_id: wire.user_id,
+        has_public_key: wire.has_public_key,
+        public_key: wire.has_public_key && wire.public_key !== null
+            ? b64ToText(wire.public_key)
+            : null,
+    };
 }

@@ -81,7 +81,35 @@ interface ListMessagesResponse {
 interface CreateMessageRequestBody {
   encrypted_message: string;
   signature: string;
+  encrypted_message_self: string;
+  signature_self: string;
   media_ids?: string[];
+}
+
+/**
+ * Mirror the backend: the POST response carries the sender's
+ * self-copy (the row the sender's UI can decrypt). Requires both
+ * pairs, otherwise 422 like the real API.
+ */
+function fakeSentMessage(
+  chatId: string,
+  body: CreateMessageRequestBody,
+): DialogMessageResponse {
+  const base = fakeDialogMessage(chatId);
+  return {
+    ...base,
+    encrypted_message: body.encrypted_message_self,
+    signature: body.signature_self,
+  };
+}
+
+function hasSelfCopy(body: CreateMessageRequestBody): boolean {
+  return (
+    typeof body.encrypted_message_self === "string" &&
+    body.encrypted_message_self.length > 0 &&
+    typeof body.signature_self === "string" &&
+    body.signature_self.length > 0
+  );
 }
 
 export interface CapturedMessageApiRequest {
@@ -210,6 +238,31 @@ export const handlers = [
     }
     const err: ErrorBody = { detail: "Unauthorized" };
     return HttpResponse.json(err, { status: 401 });
+  }),
+
+  // Mirrors the real backend: `public_key` is base64 of the
+  // ASCII-armored key bytes (FastAPI jsonable_encoder over `bytes`).
+  http.get("http://localhost:8000/users/:userId/public-key", ({ params }) => {
+    const userId = typeof params["userId"] === "string" ? params["userId"] : "user-2";
+    if (userId === "user-nokey") {
+      return HttpResponse.json({
+        user_id: userId,
+        has_public_key: false,
+        public_key: null,
+      });
+    }
+    const armored =
+      "-----BEGIN PGP PUBLIC KEY BLOCK-----\nZmFrZS1rZXktYmxvYg==\n-----END PGP PUBLIC KEY BLOCK-----\n";
+    let binary = "";
+    const bytes = new TextEncoder().encode(armored);
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i] ?? 0);
+    }
+    return HttpResponse.json({
+      user_id: userId,
+      has_public_key: true,
+      public_key: btoa(binary),
+    });
   }),
 
   http.post("http://localhost:8000/messages/private-chat/", async ({ request }) => {
@@ -409,7 +462,11 @@ export const handlers = [
       query: new URL(request.url).searchParams,
     };
     const chatId = typeof params["chatId"] === "string" ? params["chatId"] : "chat";
-    return HttpResponse.json(fakeDialogMessage(chatId));
+    const body = parsed as CreateMessageRequestBody;
+    if (typeof body !== "object" || body === null || !hasSelfCopy(body)) {
+      return HttpResponse.json({ detail: "self-copy required" }, { status: 422 });
+    }
+    return HttpResponse.json(fakeSentMessage(chatId, body));
   }),
 
   http.get("http://localhost:8000/group-messages/group-message/:chatId", async ({ request, params }) => {
@@ -439,6 +496,10 @@ export const handlers = [
       query: new URL(request.url).searchParams,
     };
     const chatId = typeof params["chatId"] === "string" ? params["chatId"] : "group";
-    return HttpResponse.json(fakeDialogMessage(chatId));
+    const body = parsed as CreateMessageRequestBody;
+    if (typeof body !== "object" || body === null || !hasSelfCopy(body)) {
+      return HttpResponse.json({ detail: "self-copy required" }, { status: 422 });
+    }
+    return HttpResponse.json(fakeSentMessage(chatId, body));
   }),
 ];

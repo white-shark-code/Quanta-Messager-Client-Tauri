@@ -32,11 +32,19 @@ export interface KeyringState {
     fingerprint: string | null;
     /** In-memory only. Never persisted, cleared by `lock()`/`clear()`. */
     passphrase: string | null;
+    /**
+     * 32-байтный ChaCha20-ключ для локального диалог-стора.
+     * Хранится в base64 (одна каноничная форма с `KeystorePayload.dialogKey`).
+     * Ставится на unlock / setup ключа, стирается на `lock()` / `clear()`.
+     * Декодируется в `dialogStore` по требованию.
+     */
+    dialogKeyB64: string | null;
     error: string | null;
     setStatus: (status: KeyringStatus) => void;
-    setKeys: (publicKeyArmored: string, privateKeyArmored: string, passphrase: string) => Promise<void>;
-    setKeysFromPair: (pair: KeyPair, passphrase: string) => Promise<void>;
+    setKeys: (publicKeyArmored: string, privateKeyArmored: string, passphrase: string, dialogKeyB64?: string) => Promise<void>;
+    setKeysFromPair: (pair: KeyPair, passphrase: string, dialogKeyB64?: string) => Promise<void>;
     importPublicOnly: (publicKeyArmored: string) => Promise<void>;
+    setDialogKey: (dialogKeyB64: string | null) => void;
     lock: () => void;
     clear: () => void;
     setError: (msg: string | null) => void;

@@ -339,6 +339,47 @@ export async function fingerprintOf(publicKeyArmored: string): Promise<string>;
 3. UI → редирект на /login
 ```
 
+#### 5.2.7. Локальный диалог-стор (`features/dialog-store`)
+
+> Шифрованный кеш истории сообщений на диске — чтобы чаты открывались мгновенно при старте и переживали рестарт без полной перекачки с сервера.
+
+**Раскладка под `<app_data_dir>`**:
+```
+dialogs/
+  <userId>/
+    <chatId>.qdlog          — ChaCha20-Poly1305 блоб (QDLG1)
+    index.json              — список chatId с локальной копией
+```
+
+**Ключ шифрования** — случайный 32-байтный блоб, генерируется один раз при создании keystore и кладётся в `KeystorePayload.dialogKey` (base64). В памяти живёт только в `keyringStore.dialogKeyB64` между unlock и lock. Без него `.qdlog` файлы не расшифровываются.
+
+**Формат файла `<chatId>.qdlog`** (`QDLG1`, см. `secure-store/format.ts`):
+```
+┌────────┬────────┬────────────┬───────────────────┐
+│ magic  │ version│ chacha_nonce│ ciphertext+tag   │
+│ 4 bytes│ 1 byte │ 12 bytes   │ N bytes          │
+└────────┴────────┴────────────┴───────────────────┘
+ "QDLG"   0x01      random      ChaCha20-Poly1305
+```
+
+Plaintext внутри — JSON-сериализованный `DialogMessage[]`. Append-only: перед записью делается dedupe по `id` и сортировка по `creation_datetime`.
+
+**Точки записи**:
+- `useSendPrivateMessage` / `useSendGroupMessage` → `onSuccess` (после `replacePending`) → `appendDialog`
+- `usePrivateMessages` / `useGroupMessages` → `useEffect` на смену данных → `appendManyDialog` (через ref для идемпотентности)
+
+**Точка чтения**: на mount `ChatRoute` — `seedCache` ставит локальную историю в React Query-кеш ДО серверного fetch, чтобы первая отрисовка не требовала сети. Серверный ответ потом мержится поверх.
+
+**Lock**: `keyringStore.lock()` стирает `dialogKeyB64` из памяти. Файлы остаются на диске, но без ключа нечитаемы до следующего unlock.
+
+#### 5.2.8. Отправка с self-копией
+
+> Каждое сообщение шифруется дважды: основная копия — ключом peer'а, self-копия — своим ключом. Бэкенд хранит обе (`encrypted_message` + `encrypted_message_self`) и отдаёт каждому viewer'у ту, что он может расшифровать. Отправитель видит свои сообщения, все его девайсы с общим keypair — тоже.
+
+- Peer-ключ приходит с `GET /users/{id}/public-key` как base64 от armored-текста — `getUserPublicKey` декодирует в armor перед `importPublicKey`.
+- `resolveRecipients` возвращает ключ peer'а; self-шифрование — второй вызов `encryptText` с собственным ключом. Обе detached-подписи сверяются сервером.
+- POST-ответ содержит self-копию — UI отправителя расшифровывает сразу, без refetch.
+
 ### 5.3. API client (`infra/apiClient.ts`)
 
 - Базовый URL из `VITE_API_URL` (build-time) + runtime-override через settings.

@@ -29,10 +29,19 @@ export interface DialogMessage extends Message {
     chat_id: string;
 }
 export interface CreateMessageRequest {
-    /** Base64-encoded `Uint8Array` — PGP-encrypted ciphertext. */
+    /** Base64-encoded `Uint8Array` — PGP-encrypted ciphertext (peer-readable). */
     encrypted_message: string;
     /** Base64-encoded `Uint8Array` — detached PGP signature. */
     signature: string;
+    /**
+     * Base64-encoded `Uint8Array` — the same plaintext encrypted to the
+     * sender's own key (sender-readable on any of their devices sharing
+     * the keypair). Required by the backend; stored as
+     * `encrypted_message_self`.
+     */
+    encrypted_message_self: string;
+    /** Base64-encoded `Uint8Array` — detached signature over the self-copy. */
+    signature_self: string;
     media_ids?: string[];
 }
 /** Generic paginated list envelope used by list endpoints. */

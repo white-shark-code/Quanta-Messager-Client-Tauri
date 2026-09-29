@@ -89,6 +89,38 @@ export declare function readIndexBuffer(): Promise<Uint8Array>;
  */
 export declare function writeIndexBuffer(data: Uint8Array): Promise<void>;
 /**
+ * Прочитать сырой ChaCha20-Poly1305 блоб диалога
+ * `<app_data_dir>/dialogs/<userId>/<chatId>.qdlog`. В браузерном
+ * режиме блоб хранится в `localStorage["quant-dialog-<userId>-<chatId>"]`.
+ *
+ * @throws Отвергает, если файл не существует или не читается.
+ */
+export declare function readDialogBuffer(userId: string, chatId: string): Promise<Uint8Array>;
+/**
+ * Атомарно записать ChaCha20-Poly1305 блоб диалога. В браузерном
+ * режиме данные base64-кодируются в `localStorage`.
+ *
+ * @param userId UUID владельца.
+ * @param data Сырые байты контейнера QDLG1 (header + ciphertext).
+ */
+export declare function writeDialogBuffer(userId: string, chatId: string, data: Uint8Array): Promise<void>;
+/** Есть ли локальный блоб для данного чата. */
+export declare function hasDialog(userId: string, chatId: string): Promise<boolean>;
+/**
+ * Удалить блоб диалога с диска. No-op, если файла нет (идемпотентно —
+ * удобно для сценариев «стереть всё» без предварительной проверки).
+ * Соответствующую запись в per-user индексе удаляет caller.
+ */
+export declare function deleteDialogFile(userId: string, chatId: string): Promise<void>;
+/**
+ * Прочитать нешифрованный индексный файл `dialogs/<userId>/index.json`
+ * со списком `chatId`, для которых есть локальная копия. Возвращает
+ * `[]`, если файла нет.
+ */
+export declare function readDialogIndex(userId: string): Promise<string[]>;
+/** Перезаписать индексный файл целиком. */
+export declare function writeDialogIndex(userId: string, chatIds: string[]): Promise<void>;
+/**
  * Write an arbitrary byte buffer to an absolute path.
  *
  * Wraps `@tauri-apps/plugin-fs#writeFile` with no `baseDir` constraint:

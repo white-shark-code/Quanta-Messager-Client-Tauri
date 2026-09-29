@@ -20,6 +20,15 @@ import { pickSaveFile, writeFileBuffer } from "@/infra/tauriBridge";
 import * as keyring from "./encrypt";
 import { isValidArmoredPrivateKey } from "./armor";
 import { useKeyringStore } from "./keyringStore";
+function generateDialogKeyB64() {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i] ?? 0);
+    }
+    return btoa(binary);
+}
 /**
  * Generate a fresh PGP key pair, persist it to the encrypted keystore,
  * and push the parsed keys into `keyringStore` so the rest of the app
@@ -74,6 +83,7 @@ export async function generateAndStoreKey(userEmail, passphrase, pgpPassphrase, 
         privateKeyArmored: pair.privateKeyArmored,
         publicKeyArmored: pair.publicKeyArmored,
         fingerprint,
+        dialogKey: generateDialogKeyB64(),
     };
     await writeKeystore(user.id, payload, passphrase);
     // Make the freshly written keystore discoverable from the index —
@@ -91,7 +101,7 @@ export async function generateAndStoreKey(userEmail, passphrase, pgpPassphrase, 
     // never enters memory long-term.
     await useKeyringStore
         .getState()
-        .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, pgpPassphrase ?? "");
+        .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, pgpPassphrase ?? "", payload.dialogKey);
     useSessionStore.getState().setFingerprint(fingerprint);
     return pair;
 }
@@ -135,6 +145,7 @@ export async function importAndStoreKey(armoredPrivate, armoredPublic, passphras
         privateKeyArmored: pair.privateKeyArmored,
         publicKeyArmored: pair.publicKeyArmored,
         fingerprint,
+        dialogKey: generateDialogKeyB64(),
     };
     await writeKeystore(user.id, payload, passphrase);
     await upsertIndexEntry({
@@ -142,7 +153,7 @@ export async function importAndStoreKey(armoredPrivate, armoredPublic, passphras
         email: userEmail,
         lastUsedAt: new Date().toISOString(),
     });
-    await useKeyringStore.getState().setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase);
+    await useKeyringStore.getState().setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase, payload.dialogKey);
     useSessionStore.getState().setFingerprint(fingerprint);
 }
 /**
@@ -210,6 +221,7 @@ export async function createBareKeystore(userEmail, keystorePassphrase) {
         privateKeyArmored: "",
         publicKeyArmored: "",
         fingerprint: "NO_KEY",
+        dialogKey: generateDialogKeyB64(),
     };
     await writeKeystore(user.id, payload, keystorePassphrase);
     await upsertIndexEntry({

@@ -38,6 +38,7 @@ describe("keyring/keyringStore", () => {
         expect(s.publicKeyArmored).toBeNull();
         expect(s.fingerprint).toBeNull();
         expect(s.passphrase).toBeNull();
+        expect(s.dialogKeyB64).toBeNull();
         expect(s.error).toBeNull();
     });
     describe("importPublicOnly", () => {
@@ -81,9 +82,18 @@ describe("keyring/keyringStore", () => {
             expect(s.publicKeyArmored).toBe(PUBLIC_ARMORED);
             expect(s.fingerprint).toBe("FFFEFDFCBFAF00112233445566778899AABBCCDD");
             expect(s.passphrase).toBe(passphrase);
+            expect(s.dialogKeyB64).toBeNull();
             expect(s.error).toBeNull();
             expect(importPrivateKey).toHaveBeenCalledWith(PRIVATE_ARMORED, passphrase);
             expect(importPublicKey).toHaveBeenCalledWith(PUBLIC_ARMORED);
+        });
+        it("stores dialogKeyB64 when supplied as the fourth argument", async () => {
+            importPublicKey.mockResolvedValueOnce(makePublicKey());
+            importPrivateKey.mockResolvedValueOnce(makePrivateKey());
+            await useKeyringStore
+                .getState()
+                .setKeys(PUBLIC_ARMORED, PRIVATE_ARMORED, "pp", "AAECAwQFBgcICQoLDA0ODw==");
+            expect(useKeyringStore.getState().dialogKeyB64).toBe("AAECAwQFBgcICQoLDA0ODw==");
         });
         it("resets to empty and surfaces the error message when the private-key unlock fails", async () => {
             importPublicKey.mockResolvedValueOnce(makePublicKey());
@@ -100,11 +110,13 @@ describe("keyring/keyringStore", () => {
         });
     });
     describe("lock", () => {
-        it("clears privateKey and passphrase, sets status='locked', keeps publicKey/fingerprint intact", async () => {
+        it("clears privateKey, passphrase and dialogKeyB64, sets status='locked', keeps publicKey/fingerprint intact", async () => {
             const passphrase = "secret";
             importPublicKey.mockResolvedValueOnce(makePublicKey("aabbccddeeff"));
             importPrivateKey.mockResolvedValueOnce(makePrivateKey());
-            await useKeyringStore.getState().setKeys(PUBLIC_ARMORED, PRIVATE_ARMORED, passphrase);
+            await useKeyringStore
+                .getState()
+                .setKeys(PUBLIC_ARMORED, PRIVATE_ARMORED, passphrase, "AAECAwQFBgcICQoLDA0ODw==");
             expect(useKeyringStore.getState().status).toBe("ready");
             expect(useKeyringStore.getState().privateKey).not.toBeNull();
             useKeyringStore.getState().lock();
@@ -112,6 +124,7 @@ describe("keyring/keyringStore", () => {
             expect(s.status).toBe("locked");
             expect(s.privateKey).toBeNull();
             expect(s.passphrase).toBeNull();
+            expect(s.dialogKeyB64).toBeNull();
             expect(s.publicKey).not.toBeNull();
             expect(s.publicKeyArmored).toBe(PUBLIC_ARMORED);
             expect(s.fingerprint).toBe("AABBCCDDEEFF");

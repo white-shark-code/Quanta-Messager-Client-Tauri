@@ -225,6 +225,132 @@ export async function writeIndexBuffer(data) {
     await writeFile(INDEX_FILENAME, data, { baseDir: BaseDirectory.AppData });
 }
 /* ------------------------------------------------------------------ *
+ * Файловые операции (шифрованный диалог-стор) — per-user, per-chat
+ * ------------------------------------------------------------------ */
+const DIALOG_DIR = "dialogs";
+const DIALOG_INDEX_FILENAME = `${DIALOG_DIR}/index.json`;
+function safeSegment(s) {
+    if (s.length === 0 || s.includes("/") || s.includes("\\") || s.includes("..")) {
+        throw new Error(`Invalid segment for dialog path: ${s}`);
+    }
+    return s;
+}
+function dialogFilename(userId, chatId) {
+    return `${DIALOG_DIR}/${safeSegment(userId)}/${safeSegment(chatId)}.qdlog`;
+}
+function dialogIndexFilename(userId) {
+    return `${DIALOG_DIR}/${safeSegment(userId)}/index.json`;
+}
+async function ensureDialogsDir(userId) {
+    if (!isTauri())
+        return;
+    try {
+        const base = await appDataDir();
+        const dir = await join(base, DIALOG_DIR, safeSegment(userId));
+        await mkdir(dir, { recursive: true });
+    }
+    catch {
+        // best-effort; writeFile will surface a clearer error on failure
+    }
+}
+/**
+ * Прочитать сырой ChaCha20-Poly1305 блоб диалога
+ * `<app_data_dir>/dialogs/<userId>/<chatId>.qdlog`. В браузерном
+ * режиме блоб хранится в `localStorage["quant-dialog-<userId>-<chatId>"]`.
+ *
+ * @throws Отвергает, если файл не существует или не читается.
+ */
+export async function readDialogBuffer(userId, chatId) {
+    if (!isTauri()) {
+        const b64 = localStorage.getItem(`quant-dialog-${userId}-${chatId}`);
+        if (b64 === null) {
+            throw new Error(`Dialog not found for ${userId}/${chatId}`);
+        }
+        return base64ToBytes(b64);
+    }
+    return readFile(dialogFilename(userId, chatId), { baseDir: BaseDirectory.AppData });
+}
+/**
+ * Атомарно записать ChaCha20-Poly1305 блоб диалога. В браузерном
+ * режиме данные base64-кодируются в `localStorage`.
+ *
+ * @param userId UUID владельца.
+ * @param data Сырые байты контейнера QDLG1 (header + ciphertext).
+ */
+export async function writeDialogBuffer(userId, chatId, data) {
+    if (!isTauri()) {
+        localStorage.setItem(`quant-dialog-${userId}-${chatId}`, bytesToBase64(data));
+        return;
+    }
+    await ensureDialogsDir(userId);
+    await writeFile(dialogFilename(userId, chatId), data, { baseDir: BaseDirectory.AppData });
+}
+/** Есть ли локальный блоб для данного чата. */
+export async function hasDialog(userId, chatId) {
+    if (!isTauri()) {
+        return localStorage.getItem(`quant-dialog-${userId}-${chatId}`) !== null;
+    }
+    return exists(dialogFilename(userId, chatId), { baseDir: BaseDirectory.AppData });
+}
+/**
+ * Удалить блоб диалога с диска. No-op, если файла нет (идемпотентно —
+ * удобно для сценариев «стереть всё» без предварительной проверки).
+ * Соответствующую запись в per-user индексе удаляет caller.
+ */
+export async function deleteDialogFile(userId, chatId) {
+    if (!isTauri()) {
+        localStorage.removeItem(`quant-dialog-${userId}-${chatId}`);
+        return;
+    }
+    try {
+        const { remove } = await import("@tauri-apps/plugin-fs");
+        const base = await appDataDir();
+        const absolutePath = await join(base, dialogFilename(userId, chatId));
+        await remove(absolutePath);
+    }
+    catch {
+        // файла нет — окей
+    }
+}
+/**
+ * Прочитать нешифрованный индексный файл `dialogs/<userId>/index.json`
+ * со списком `chatId`, для которых есть локальная копия. Возвращает
+ * `[]`, если файла нет.
+ */
+export async function readDialogIndex(userId) {
+    if (!isTauri()) {
+        const raw = localStorage.getItem(`quant-dialog-index-${userId}`);
+        if (raw === null)
+            return [];
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
+        }
+        catch {
+            return [];
+        }
+    }
+    try {
+        const buf = await readFile(dialogIndexFilename(userId), { baseDir: BaseDirectory.AppData });
+        const text = new TextDecoder().decode(buf);
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
+    }
+    catch {
+        return [];
+    }
+}
+/** Перезаписать индексный файл целиком. */
+export async function writeDialogIndex(userId, chatIds) {
+    const json = JSON.stringify(chatIds);
+    if (!isTauri()) {
+        localStorage.setItem(`quant-dialog-index-${userId}`, json);
+        return;
+    }
+    await ensureDialogsDir(userId);
+    await writeFile(dialogIndexFilename(userId), new TextEncoder().encode(json), { baseDir: BaseDirectory.AppData });
+}
+/* ------------------------------------------------------------------ *
  * Dialog wrappers
  * ------------------------------------------------------------------ */
 /**

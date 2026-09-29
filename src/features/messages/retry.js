@@ -91,14 +91,19 @@ export function useRetryMessage() {
             if (user === null) {
                 throw new Error("Not logged in");
             }
-            const recipients = [publicKey];
-            const { encrypted, signature } = await keyring.encryptText(text, recipients, privateKey);
+            // This variant has no peer key by design (notes-to-self /
+            // programmatic use), so both slots carry the self-encrypted
+            // pair: the backend requires both, and both stay decryptable
+            // by the sender.
+            const { encrypted, signature } = await keyring.encryptText(text, [publicKey], privateKey);
             const send = kind === "private"
                 ? messagesApi.sendPrivateMessage
                 : messagesApi.sendGroupMessage;
             const server = await send(chatId, {
                 encrypted_message: bytesToBase64(encrypted),
                 signature: bytesToBase64(signature),
+                encrypted_message_self: bytesToBase64(encrypted),
+                signature_self: bytesToBase64(signature),
             });
             return { id: server.id };
         },

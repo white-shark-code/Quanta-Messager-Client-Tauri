@@ -87,6 +87,7 @@ const SAMPLE_PAYLOAD_A = {
     privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeA\n-----END PGP PRIVATE KEY BLOCK-----",
     publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeA\n-----END PGP PUBLIC KEY BLOCK-----",
     fingerprint: "FINGERPRINT_A",
+    dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
 const SAMPLE_PAYLOAD_B = {
     version: 1,
@@ -95,6 +96,7 @@ const SAMPLE_PAYLOAD_B = {
     privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeB\n-----END PGP PRIVATE KEY BLOCK-----",
     publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeB\n-----END PGP PUBLIC KEY BLOCK-----",
     fingerprint: "FINGERPRINT_B",
+    dialogKey: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxw=",
 };
 /**
  * `isTauri()` in `tauriBridge.ts` checks `typeof window !== "undefined" && "__TAURI_INTERNALS__" in window`.

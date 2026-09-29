@@ -31,6 +31,16 @@ import { isValidArmoredPrivateKey } from "./armor";
 import { useKeyringStore } from "./keyringStore";
 import type { KeyAlgorithm, KeyPair } from "./types";
 
+function generateDialogKeyB64(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i] ?? 0);
+  }
+  return btoa(binary);
+}
+
 /**
  * Generate a fresh PGP key pair, persist it to the encrypted keystore,
  * and push the parsed keys into `keyringStore` so the rest of the app
@@ -96,6 +106,7 @@ export async function generateAndStoreKey(
     privateKeyArmored: pair.privateKeyArmored,
     publicKeyArmored: pair.publicKeyArmored,
     fingerprint,
+    dialogKey: generateDialogKeyB64(),
   };
 
   await writeKeystore(user.id, payload, passphrase);
@@ -114,7 +125,7 @@ export async function generateAndStoreKey(
   // never enters memory long-term.
   await useKeyringStore
     .getState()
-    .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, pgpPassphrase ?? "");
+    .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, pgpPassphrase ?? "", payload.dialogKey);
   useSessionStore.getState().setFingerprint(fingerprint);
 
   return pair;
@@ -168,6 +179,7 @@ export async function importAndStoreKey(
     privateKeyArmored: pair.privateKeyArmored,
     publicKeyArmored: pair.publicKeyArmored,
     fingerprint,
+    dialogKey: generateDialogKeyB64(),
   };
 
   await writeKeystore(user.id, payload, passphrase);
@@ -176,7 +188,7 @@ export async function importAndStoreKey(
     email: userEmail,
     lastUsedAt: new Date().toISOString(),
   });
-  await useKeyringStore.getState().setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase);
+  await useKeyringStore.getState().setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase, payload.dialogKey);
   useSessionStore.getState().setFingerprint(fingerprint);
 }
 
@@ -253,6 +265,7 @@ export async function createBareKeystore(
     privateKeyArmored: "",
     publicKeyArmored: "",
     fingerprint: "NO_KEY",
+    dialogKey: generateDialogKeyB64(),
   };
 
   await writeKeystore(user.id, payload, keystorePassphrase);

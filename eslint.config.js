@@ -59,11 +59,12 @@ export default tseslint.config(
     },
   },
   {
+    // Plain-JS files (mostly committed tsc emit next to .ts sources) carry
+    // no type info: projectService is off here AND all type-aware rules are
+    // downgraded via disableTypeChecked. Without the latter, rules like
+    // @typescript-eslint/await-thenable still demand type info (inherited
+    // from recommendedTypeChecked above) and crash the whole run.
     files: ["**/*.{js,jsx,mjs,cjs}"],
-    languageOptions: {
-      parserOptions: {
-        projectService: false,
-      },
-    },
+    ...tseslint.configs.disableTypeChecked,
   },
 );

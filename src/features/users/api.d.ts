@@ -2,10 +2,10 @@ export interface PublicKeyResponse {
     user_id: string;
     has_public_key: boolean;
     /**
-     * Base64-encoded PGP public key bytes on the wire (FastAPI's
-     * `jsonable_encoder` base64-encodes raw `bytes` fields). `null`
-     * when `has_public_key` is false. Decoding back to `Uint8Array`
-     * is the caller's job (use `Uint8Array.from(atob(b64), c => ...)`).
+     * ASCII-armored PGP public key text, ready for
+     * `keyring.importPublicKey`. `null` when `has_public_key` is false.
+     * `getUserPublicKey` decodes the base64 wire form — callers must
+     * NOT decode again.
      */
     public_key: string | null;
 }

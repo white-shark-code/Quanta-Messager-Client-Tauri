@@ -17,6 +17,7 @@ const SAMPLE_PAYLOAD = {
     privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\n...fake-armor...\n-----END PGP PRIVATE KEY BLOCK-----",
     publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\n...fake-armor...\n-----END PGP PUBLIC KEY BLOCK-----",
     fingerprint: "ABCD1234DEADBEEF5678EF90",
+    dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
 describe("format (keystore.qks binary layout)", () => {
     it("serializes and parses a round-trip preserving kdfSalt, chachaNonce and ciphertext", async () => {

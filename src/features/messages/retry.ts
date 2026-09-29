@@ -152,16 +152,21 @@ export function useRetryMessage(): UseMutationResult<RetryResult, Error, RetryIn
         throw new Error("Not logged in");
       }
 
-      const recipients = [publicKey];
+      // This variant has no peer key by design (notes-to-self /
+      // programmatic use), so both slots carry the self-encrypted
+      // pair: the backend requires both, and both stay decryptable
+      // by the sender.
       const { encrypted, signature } = await keyring.encryptText(
         text,
-        recipients,
+        [publicKey],
         privateKey,
       );
 
       const send: (id: string, req: {
         encrypted_message: string;
         signature: string;
+        encrypted_message_self: string;
+        signature_self: string;
       }) => Promise<DialogMessage> =
         kind === "private"
           ? messagesApi.sendPrivateMessage
@@ -170,6 +175,8 @@ export function useRetryMessage(): UseMutationResult<RetryResult, Error, RetryIn
       const server = await send(chatId, {
         encrypted_message: bytesToBase64(encrypted),
         signature: bytesToBase64(signature),
+        encrypted_message_self: bytesToBase64(encrypted),
+        signature_self: bytesToBase64(signature),
       });
 
       return { id: server.id };

@@ -8,6 +8,14 @@ export interface KeystorePayload {
     privateKeyArmored: string;
     publicKeyArmored: string;
     fingerprint: string;
+    /**
+     * Base64-кодированный 32-байтный ключ ChaCha20 для шифрования
+     * локального диалог-стора (контейнеры QDLG1 в `dialogs/<userId>/`).
+     * Хранится внутри keystore, чтобы переживал перезагрузки, но
+     * стирается из памяти на lock. Без этого поля диалог-стор
+     * не расшифровывается после рестарта.
+     */
+    dialogKey: string;
 }
 export interface KeystoreFile {
     magic: Uint8Array;

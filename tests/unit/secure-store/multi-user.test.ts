@@ -93,6 +93,7 @@ function makePayload(userId: string, email: string, token: string): KeystorePayl
     privateKeyArmored: `-----BEGIN PGP PRIVATE KEY BLOCK-----\n${email}\n-----END PGP PRIVATE KEY BLOCK-----`,
     publicKeyArmored: `-----BEGIN PGP PUBLIC KEY BLOCK-----\n${email}\n-----END PGP PUBLIC KEY BLOCK-----`,
     fingerprint: `FP-${userId}`,
+    dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
   };
 }
 

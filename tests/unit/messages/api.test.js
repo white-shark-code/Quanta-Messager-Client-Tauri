@@ -7,6 +7,8 @@ const CHAT_PRIVATE = "11111111-2222-3333-4444-555555555555";
 const CHAT_GROUP = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const CIPHERTEXT_B64 = "RW5jcnlwdGVkVGV4dEZyb21UZXN0";
 const SIGNATURE_B64 = "RGV0YWNoZWRTaWduYXR1cmVGb3JUZXN0";
+const SELF_CIPHERTEXT_B64 = "U2VsZkVuY3J5cHRlZFRleHRGcm9tVGVzdA==";
+const SELF_SIGNATURE_B64 = "U2VsZkRldGFjaGVkU2lnbmF0dXJlRnJvbVRlc3Q=";
 describe("messages/api", () => {
     beforeEach(() => {
         resetMessageApiCaptures();
@@ -50,10 +52,12 @@ describe("messages/api", () => {
         });
     });
     describe("sendPrivateMessage", () => {
-        it("POSTs /messages/private-message/{chatId} with the encrypted_message and signature as base64 strings", async () => {
+        it("POSTs /messages/private-message/{chatId} with both ciphertext pairs as base64 strings", async () => {
             const result = await sendPrivateMessage(CHAT_PRIVATE, {
                 encrypted_message: CIPHERTEXT_B64,
                 signature: SIGNATURE_B64,
+                encrypted_message_self: SELF_CIPHERTEXT_B64,
+                signature_self: SELF_SIGNATURE_B64,
             });
             const captured = capturedMessageApi.privateSend;
             expect(captured).not.toBeNull();
@@ -63,7 +67,20 @@ describe("messages/api", () => {
             const body = captured?.body;
             expect(body.encrypted_message).toBe(CIPHERTEXT_B64);
             expect(body.signature).toBe(SIGNATURE_B64);
+            expect(body.encrypted_message_self).toBe(SELF_CIPHERTEXT_B64);
+            expect(body.signature_self).toBe(SELF_SIGNATURE_B64);
             expect(result.chat_id).toBe(CHAT_PRIVATE);
+            // The mock mirrors the backend: POST response carries the self-copy.
+            expect(result.encrypted_message).toBe(SELF_CIPHERTEXT_B64);
+            expect(result.signature).toBe(SELF_SIGNATURE_B64);
+        });
+        it("fails with 422 when the self-copy is missing", async () => {
+            await expect(sendPrivateMessage(CHAT_PRIVATE, {
+                encrypted_message: CIPHERTEXT_B64,
+                signature: SIGNATURE_B64,
+                encrypted_message_self: "",
+                signature_self: "",
+            })).rejects.toThrow();
         });
     });
     describe("getGroupMessages", () => {
@@ -77,10 +94,12 @@ describe("messages/api", () => {
         });
     });
     describe("sendGroupMessage", () => {
-        it("POSTs /group-messages/group-message/{chatId} with the encrypted_message and signature as base64 strings", async () => {
+        it("POSTs /group-messages/group-message/{chatId} with both ciphertext pairs as base64 strings", async () => {
             const result = await sendGroupMessage(CHAT_GROUP, {
                 encrypted_message: CIPHERTEXT_B64,
                 signature: SIGNATURE_B64,
+                encrypted_message_self: SELF_CIPHERTEXT_B64,
+                signature_self: SELF_SIGNATURE_B64,
             });
             const captured = capturedMessageApi.groupSend;
             expect(captured).not.toBeNull();
@@ -90,7 +109,12 @@ describe("messages/api", () => {
             const body = captured?.body;
             expect(body.encrypted_message).toBe(CIPHERTEXT_B64);
             expect(body.signature).toBe(SIGNATURE_B64);
+            expect(body.encrypted_message_self).toBe(SELF_CIPHERTEXT_B64);
+            expect(body.signature_self).toBe(SELF_SIGNATURE_B64);
             expect(result.chat_id).toBe(CHAT_GROUP);
+            // The mock mirrors the backend: POST response carries the self-copy.
+            expect(result.encrypted_message).toBe(SELF_CIPHERTEXT_B64);
+            expect(result.signature).toBe(SELF_SIGNATURE_B64);
         });
     });
     it("no captured request leaks between tests", () => {

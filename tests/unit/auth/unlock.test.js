@@ -58,6 +58,7 @@ const FAKE_PAYLOAD = {
     privateKeyArmored: FAKE_PRIVATE_KEY,
     publicKeyArmored: FAKE_PUBLIC_KEY,
     fingerprint: "DEADBEEFCAFEBABE",
+    dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
 describe("auth/unlock", () => {
     beforeEach(() => {
@@ -89,14 +90,14 @@ describe("auth/unlock", () => {
             expect(importPublicKeyMock).toHaveBeenCalledTimes(1);
             expect(importPublicKeyMock).toHaveBeenCalledWith(FAKE_PUBLIC_KEY);
             expect(setKeysMock).toHaveBeenCalledTimes(1);
-            expect(setKeysMock).toHaveBeenCalledWith(FAKE_PUBLIC_KEY, FAKE_PRIVATE_KEY, "keystore-pass");
+            expect(setKeysMock).toHaveBeenCalledWith(FAKE_PUBLIC_KEY, FAKE_PRIVATE_KEY, "keystore-pass", FAKE_PAYLOAD.dialogKey);
         });
         it("uses the keystore passphrase as the effective PGP passphrase when none is provided", async () => {
             await unlockWithPassphrase(USER_A, "only-keystore");
             expect(hasKeystoreMock).toHaveBeenCalledWith(USER_A);
             expect(readKeystoreMock).toHaveBeenCalledWith(USER_A, "only-keystore");
             expect(importPrivateKeyMock).toHaveBeenCalledWith(FAKE_PRIVATE_KEY, "only-keystore");
-            expect(setKeysMock).toHaveBeenCalledWith(FAKE_PUBLIC_KEY, FAKE_PRIVATE_KEY, "only-keystore");
+            expect(setKeysMock).toHaveBeenCalledWith(FAKE_PUBLIC_KEY, FAKE_PRIVATE_KEY, "only-keystore", FAKE_PAYLOAD.dialogKey);
         });
         it("uses the dedicated PGP passphrase when provided (different from keystore)", async () => {
             await unlockWithPassphrase(USER_A, "keystore-pass", "pgp-pass");
@@ -104,7 +105,7 @@ describe("auth/unlock", () => {
             expect(readKeystoreMock).toHaveBeenCalledWith(USER_A, "keystore-pass");
             expect(importPrivateKeyMock).toHaveBeenCalledWith(FAKE_PRIVATE_KEY, "pgp-pass");
             expect(importPrivateKeyMock).not.toHaveBeenCalledWith(FAKE_PRIVATE_KEY, "keystore-pass");
-            expect(setKeysMock).toHaveBeenCalledWith(FAKE_PUBLIC_KEY, FAKE_PRIVATE_KEY, "pgp-pass");
+            expect(setKeysMock).toHaveBeenCalledWith(FAKE_PUBLIC_KEY, FAKE_PRIVATE_KEY, "pgp-pass", FAKE_PAYLOAD.dialogKey);
         });
         it("populates the session store with the user and unlocks it", async () => {
             await unlockWithPassphrase(USER_A, "keystore-pass");

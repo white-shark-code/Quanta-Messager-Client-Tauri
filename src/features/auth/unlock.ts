@@ -45,7 +45,12 @@ export async function unlockWithPassphrase(
   await keyring.importPublicKey(payload.publicKeyArmored);
   await useKeyringStore
     .getState()
-    .setKeys(payload.publicKeyArmored, payload.privateKeyArmored, effectivePgpPass);
+    .setKeys(
+      payload.publicKeyArmored,
+      payload.privateKeyArmored,
+      effectivePgpPass,
+      payload.dialogKey,
+    );
 
   useSessionStore.getState().setUser({ id: payload.user.id, email: payload.user.email });
   useSessionStore.getState().setUnlocked(true);

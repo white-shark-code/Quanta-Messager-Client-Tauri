@@ -3,13 +3,16 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Center, Group, Loader, Stack } from "@mantine/core";
 import { IconAlertCircle, IconArrowLeft } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { usePrivateChat } from "@/features/chats/queries";
 import type { DialogChat } from "@/features/chats/model";
 import { useMarkAsRead } from "@/features/events/useMarkAsRead";
+import { seedCache } from "@/features/dialog-store/store";
 import { Composer } from "@/features/messages/components/Composer";
 import { MessageBubble } from "@/features/messages/components/MessageBubble";
+import type { DialogMessage, ListItems } from "@/features/messages/model";
 import { usePrivateMessages } from "@/features/messages/queries";
 import { ApiError, toUserMessage } from "@/infra/error";
 import { useUserPublicKey } from "@/features/users/queries";
@@ -65,8 +68,30 @@ export function ChatRoute(): JSX.Element | null {
     peerKey.data === undefined && peerKey.isFetching && !peerLookup404;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   useMarkAsRead(chatId ?? "", kind);
+
+  // Сидим React Query-кеш из шифрованного локального файла ДО того,
+  // как отрезолвится сетевой fetch. Серверный ответ потом
+  // перезапишет/смержит поверх через обычный `onSuccess`-путь.
+  // Best-effort: если файла нет или он битый — пустой первый рендер.
+  useEffect(() => {
+    const ownerId = currentUser?.id;
+    if (chatId === undefined || ownerId === undefined) return;
+    let cancelled = false;
+    void (async () => {
+      const seeded = await seedCache(ownerId, chatId);
+      if (cancelled || seeded === undefined) return;
+      queryClient.setQueryData<{ pages: ListItems<DialogMessage>[]; pageParams: number[] }>(
+        ["messages", kind, chatId],
+        seeded,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, currentUser?.id, kind, queryClient]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

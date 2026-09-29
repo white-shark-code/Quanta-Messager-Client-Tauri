@@ -95,6 +95,7 @@ const FAKE_KEYSTORE = {
     privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfake\n-----END PGP PRIVATE KEY BLOCK-----",
     publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfake\n-----END PGP PUBLIC KEY BLOCK-----",
     fingerprint: "ABCD1234",
+    dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
 function setSessionUser() {
     sessionState.user = { id: USER_ID, email: USER_EMAIL };
