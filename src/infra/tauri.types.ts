@@ -26,9 +26,7 @@
  * }
  * ```
  */
-export type TauriResponse<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string };
+export type TauriResponse<T> = { ok: true; data: T } | { ok: false; error: string };
 
 /**
  * High-level application lifecycle transitions.

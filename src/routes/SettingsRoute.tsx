@@ -41,11 +41,7 @@ import { useSessionStore } from "@/features/auth/sessionStore";
 import { deleteKeystoreForUser } from "@/features/keyring/generate";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { useSettingsStore } from "@/features/settings/settingsStore";
-import {
-  clearDebugLog,
-  getDebugLog,
-  getDebugLogLocation,
-} from "@/lib/debug";
+import { clearDebugLog, getDebugLog, getDebugLogLocation } from "@/lib/debug";
 import { ColorSchemeToggle } from "@/ui/components/ColorSchemeToggle";
 
 export function SettingsRoute(): JSX.Element {
@@ -162,10 +158,7 @@ export function SettingsRoute(): JSX.Element {
                 <NumberInput
                   value={pollingIntervalMs}
                   onChange={(v) =>
-                    void setSetting(
-                      "pollingIntervalMs",
-                      typeof v === "number" ? v : 5000,
-                    )
+                    void setSetting("pollingIntervalMs", typeof v === "number" ? v : 5000)
                   }
                   min={1000}
                   max={60000}
@@ -177,9 +170,7 @@ export function SettingsRoute(): JSX.Element {
               <Stack>
                 <Switch
                   checked={autoLockEnabled}
-                  onChange={(e) =>
-                    void setSetting("autoLockEnabled", e.currentTarget.checked)
-                  }
+                  onChange={(e) => void setSetting("autoLockEnabled", e.currentTarget.checked)}
                   label={t("settings.autoLock")}
                 />
                 {autoLockEnabled && (
@@ -187,10 +178,7 @@ export function SettingsRoute(): JSX.Element {
                     label={t("settings.idleTimeout")}
                     value={idleTimeoutMs}
                     onChange={(v) =>
-                      void setSetting(
-                        "idleTimeoutMs",
-                        typeof v === "number" ? v : 300000,
-                      )
+                      void setSetting("idleTimeoutMs", typeof v === "number" ? v : 300000)
                     }
                     min={60000}
                     max={3600000}
@@ -199,12 +187,7 @@ export function SettingsRoute(): JSX.Element {
                 )}
                 <Switch
                   checked={notificationsEnabled}
-                  onChange={(e) =>
-                    void setSetting(
-                      "notificationsEnabled",
-                      e.currentTarget.checked,
-                    )
-                  }
+                  onChange={(e) => void setSetting("notificationsEnabled", e.currentTarget.checked)}
                   label={t("settings.notifications")}
                 />
               </Stack>
@@ -256,9 +239,7 @@ export function SettingsRoute(): JSX.Element {
                 </Group>
                 <ScrollArea h={240}>
                   <Code block fz="xs">
-                    {debugContent.length > 0
-                      ? debugContent
-                      : t("settings.diagnostics.empty")}
+                    {debugContent.length > 0 ? debugContent : t("settings.diagnostics.empty")}
                   </Code>
                 </ScrollArea>
               </Stack>

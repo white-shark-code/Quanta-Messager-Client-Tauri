@@ -1,14 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Alert,
-  Button,
-  Group,
-  Paper,
-  Stack,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Alert, Button, Group, Paper, Stack, TextInput, Title } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 
@@ -53,8 +45,7 @@ export function NewGroupRoute(): JSX.Element {
   }
 
   const displayError =
-    validationError ??
-    (createGroup.error !== null ? toUserMessage(createGroup.error) : null);
+    validationError ?? (createGroup.error !== null ? toUserMessage(createGroup.error) : null);
 
   return (
     <Paper p="md" maw={600} mx="auto" mt={40}>
@@ -76,10 +67,7 @@ export function NewGroupRoute(): JSX.Element {
           <Button variant="default" onClick={() => navigate("/chats")}>
             {t("chats.newGroup.cancel")}
           </Button>
-          <Button
-            onClick={() => void handleSubmit()}
-            loading={createGroup.isPending}
-          >
+          <Button onClick={() => void handleSubmit()} loading={createGroup.isPending}>
             {t("chats.newGroup.submit")}
           </Button>
         </Group>

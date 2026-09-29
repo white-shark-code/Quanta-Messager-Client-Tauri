@@ -72,11 +72,7 @@ export async function init(): Promise<void> {
   // and pin the single canonical id: sha256 = 8, aes256 = 9.
   // When pgpy is upgraded, revert these to the v6 defaults for stronger crypto.
   Reflect.set(openpgp.config, "preferredHashAlgorithm", openpgp.enums.hash.sha256);
-  Reflect.set(
-    openpgp.config,
-    "preferredSymmetricAlgorithm",
-    openpgp.enums.symmetric.aes256,
-  );
+  Reflect.set(openpgp.config, "preferredSymmetricAlgorithm", openpgp.enums.symmetric.aes256);
 
   initialized = true;
 }
@@ -305,7 +301,7 @@ export async function encryptText(
  */
 export async function decryptText(
   encrypted: Uint8Array,
-  signature: Uint8Array,
+  _signature: Uint8Array,
   sendersPublicKey: openpgp.Key,
   decryptionKey: openpgp.PrivateKey,
 ): Promise<{ text: string; verified: boolean }> {
@@ -315,7 +311,7 @@ export async function decryptText(
     armoredMessage: decodeArmored(encrypted, "encrypted"),
   });
 
-  // The `signature` argument is the signature of the *ciphertext*
+  // The `_signature` argument is the signature of the *ciphertext*
   // (produced by `encryptText` for the backend to verify). It is NOT
   // a detached signature over the plaintext — passing it to
   // `openpgp.decrypt({ signature })` would always fail because openpgp
@@ -324,8 +320,8 @@ export async function decryptText(
   // `encryptText` injects via `signingKeys` on `openpgp.encrypt`, which
   // openpgp reads and verifies automatically when `verificationKeys` is
   // passed — that array surfaces in `result.signatures`.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _signatureBytes = signature;
+  // (`_signature` is intentionally unused — underscore prefix marks it
+  // as such for TS `noUnusedParameters`.)
 
   const result = await openpgp.decrypt({
     message,
@@ -423,7 +419,7 @@ export async function encryptFile(
  */
 export async function decryptFile(
   encrypted: Uint8Array,
-  signature: Uint8Array,
+  _signature: Uint8Array,
   sendersPublicKey: openpgp.Key,
   decryptionKey: openpgp.PrivateKey,
 ): Promise<Uint8Array> {
@@ -433,12 +429,10 @@ export async function decryptFile(
     armoredMessage: decodeArmored(encrypted, "encrypted"),
   });
 
-  // See `decryptText` for why `signature` is intentionally ignored
+  // See `decryptText` for why `_signature` is intentionally ignored
   // here: it covers the ciphertext (for the backend), not the
   // plaintext. Embedded signature rides inside the encrypted blob
   // and is auto-verified via `verificationKeys`.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _signatureBytes = signature;
 
   const result = await openpgp.decrypt({
     message,
@@ -502,9 +496,7 @@ function decodeArmored(bytes: Uint8Array, label: string): string {
  * `instanceof ReadableStream` check that would fail for
  * `NodeWebStream`.
  */
-async function readMaybeStreamAsString(
-  data: string | AsyncIterable<string>,
-): Promise<string> {
+async function readMaybeStreamAsString(data: string | AsyncIterable<string>): Promise<string> {
   if (typeof data === "string") {
     return data;
   }

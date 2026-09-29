@@ -1,14 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Alert,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Alert, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
 
 import { usePrivateChats, useGroupChats } from "@/features/chats/queries";
 import { useEventsPolling } from "@/features/events/polling";
@@ -27,9 +19,7 @@ export function ChatsRoute(): JSX.Element {
   const allChats = useMemo<AnyChat[]>(() => {
     const priv = privateChats.data?.pages.flatMap((p) => p.items) ?? [];
     const grp = groupChats.data?.pages.flatMap((p) => p.items) ?? [];
-    return [...priv, ...grp].sort((a, b) =>
-      b.create_at.localeCompare(a.create_at),
-    );
+    return [...priv, ...grp].sort((a, b) => b.create_at.localeCompare(a.create_at));
   }, [privateChats.data, groupChats.data]);
 
   const unreadByChat = useMemo(() => {
@@ -42,11 +32,9 @@ export function ChatsRoute(): JSX.Element {
   const error = privateChats.error ?? groupChats.error;
 
   const canLoadMorePrivate =
-    privateChats.hasNextPage === true &&
-    privateChats.isFetchingNextPage === false;
+    privateChats.hasNextPage === true && privateChats.isFetchingNextPage === false;
   const canLoadMoreGroup =
-    groupChats.hasNextPage === true &&
-    groupChats.isFetchingNextPage === false;
+    groupChats.hasNextPage === true && groupChats.isFetchingNextPage === false;
   const canLoadMore = canLoadMorePrivate || canLoadMoreGroup;
 
   function handleLoadMore(): void {
@@ -82,20 +70,14 @@ export function ChatsRoute(): JSX.Element {
         </Text>
       </Group>
       {allChats.map((chat) => (
-        <ChatItem
-          key={chat.id}
-          chat={chat}
-          unreadCount={unreadByChat.get(chat.id) ?? 0}
-        />
+        <ChatItem key={chat.id} chat={chat} unreadCount={unreadByChat.get(chat.id) ?? 0} />
       ))}
       {canLoadMore && (
         <Group justify="center">
           <Button
             variant="subtle"
             onClick={() => void handleLoadMore()}
-            loading={
-              privateChats.isFetchingNextPage || groupChats.isFetchingNextPage
-            }
+            loading={privateChats.isFetchingNextPage || groupChats.isFetchingNextPage}
           >
             {t("chats.loadMore")}
           </Button>

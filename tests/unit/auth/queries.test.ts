@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -27,16 +26,16 @@ const {
 }));
 
 vi.mock("@/features/auth/api", () => ({
-  login: (...args: unknown[]) => loginMock(...args),
-  me: (...args: unknown[]) => meMock(...args),
+  login: (...args: unknown[]): unknown => loginMock(...args) as unknown,
+  me: (...args: unknown[]): unknown => meMock(...args) as unknown,
 }));
 
 vi.mock("@/infra/tauriBridge", () => ({
-  hasKeystore: (...args: unknown[]) => hasKeystoreMock(...args),
+  hasKeystore: (...args: unknown[]): unknown => hasKeystoreMock(...args) as unknown,
 }));
 
 vi.mock("@/features/secure-store/store", () => ({
-  upsertIndexEntry: (...args: unknown[]) => upsertIndexEntryMock(...args),
+  upsertIndexEntry: (...args: unknown[]): unknown => upsertIndexEntryMock(...args) as unknown,
   readKeystore: vi.fn(),
   writeKeystore: vi.fn(),
   updateKeystoreToken: vi.fn(),
@@ -105,13 +104,32 @@ const FAKE_ME: MeResponse = {
 
 interface ProbeHandle {
   value: ReturnType<typeof useLogin> | null;
-  container: HTMLDivElement;
+  container: unknown;
   root: Root;
 }
 
-function mountLogin(_initialPath = "/"): ProbeHandle {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
+interface TestDocumentBody {
+  appendChild(node: unknown): unknown;
+  innerHTML: string;
+}
+
+interface TestDocument {
+  createElement(tag: string): unknown;
+  body: TestDocumentBody;
+}
+
+/**
+ * tests/ resolve types via tsconfig.node.json (lib ES2022, no DOM), so the
+ * global `document` is untyped there. Reach the same runtime value through a
+ * structural globalThis cast — no behavior change.
+ */
+function testDocument(): TestDocument {
+  return (globalThis as unknown as { document: TestDocument }).document;
+}
+
+function mountLogin(): ProbeHandle {
+  const container = testDocument().createElement("div");
+  testDocument().body.appendChild(container);
 
   const handle: ProbeHandle = {
     value: null,
@@ -129,11 +147,7 @@ function mountLogin(_initialPath = "/"): ProbeHandle {
   handle.root = createRoot(container);
   act(() => {
     handle.root.render(
-      React.createElement(
-        QueryClientProvider,
-        { client: queryClient },
-        React.createElement(Probe),
-      ),
+      React.createElement(QueryClientProvider, { client: queryClient }, React.createElement(Probe)),
     );
   });
 
@@ -165,7 +179,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  testDocument().body.innerHTML = "";
   vi.clearAllMocks();
 });
 
@@ -173,7 +187,7 @@ describe("auth/queries — useLogin.onSuccess (multi-user flow)", () => {
   it("happy path with existing keystore: writes session, upserts index, calls hasKeystore(user.id)", async () => {
     hasKeystoreMock.mockResolvedValue(true);
 
-    const handle = mountLogin("/");
+    const handle = mountLogin();
 
     await act(async () => {
       await handle.value!.mutateAsync({ username: USER_EMAIL, password: "correct" });
@@ -212,7 +226,7 @@ describe("auth/queries — useLogin.onSuccess (multi-user flow)", () => {
   it("happy path WITHOUT existing keystore → navigates to /create-keystore?userId=<id>", async () => {
     hasKeystoreMock.mockResolvedValue(false);
 
-    const handle = mountLogin("/");
+    const handle = mountLogin();
 
     await act(async () => {
       await handle.value!.mutateAsync({ username: USER_EMAIL, password: "correct" });
@@ -235,7 +249,7 @@ describe("auth/queries — useLogin.onSuccess (multi-user flow)", () => {
     hasKeystoreMock.mockResolvedValue(true);
 
     const before = Date.now();
-    const handle = mountLogin("/");
+    const handle = mountLogin();
 
     await act(async () => {
       await handle.value!.mutateAsync({ username: USER_EMAIL, password: "correct" });
@@ -254,7 +268,7 @@ describe("auth/queries — useLogin.onSuccess (multi-user flow)", () => {
   it("login error propagates and does NOT write to the index, session, or hasKeystore", async () => {
     loginMock.mockRejectedValueOnce(new Error("Invalid credentials"));
 
-    const handle = mountLogin("/");
+    const handle = mountLogin();
 
     let caught: unknown = null;
     await act(async () => {

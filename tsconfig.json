@@ -17,6 +17,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
+    "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
@@ -29,6 +30,13 @@
     }
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "src-tauri/target", "tests", "vite.config.ts", "vitest.config.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src-tauri/target",
+    "tests",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

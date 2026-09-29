@@ -98,9 +98,7 @@ export function revokeBlobUrl(mediaId: string): void {
  * @throws Whatever `mediaApi.downloadPrivateMedia` or `keyring.decryptFile`
  *         throw on transport / cryptographic failure (typed by the caller).
  */
-export async function downloadAndDecryptPrivate(
-  mediaId: string,
-): Promise<CachedMedia> {
+export async function downloadAndDecryptPrivate(mediaId: string): Promise<CachedMedia> {
   const cached = blobCache.get(mediaId);
   if (cached !== undefined) {
     return cached;
@@ -135,9 +133,7 @@ export async function downloadAndDecryptPrivate(
  * Download + decrypt a group-chat media attachment. Same contract as
  * {@link downloadAndDecryptPrivate} but hits the group endpoint.
  */
-export async function downloadAndDecryptGroup(
-  mediaId: string,
-): Promise<CachedMedia> {
+export async function downloadAndDecryptGroup(mediaId: string): Promise<CachedMedia> {
   const cached = blobCache.get(mediaId);
   if (cached !== undefined) {
     return cached;
@@ -186,7 +182,9 @@ function base64ToBytes(b64: string): Uint8Array {
  * anchor's `href`.
  */
 function cacheBytes(mediaId: string, bytes: Uint8Array, mime: string): CachedMedia {
-  const blob = new Blob([bytes], { type: mime });
+  const copy: Uint8Array<ArrayBuffer> = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  const blob = new Blob([copy.buffer], { type: mime });
   const url = URL.createObjectURL(blob);
   const entry: CachedMedia = { blob, url, mime };
   blobCache.set(mediaId, entry);

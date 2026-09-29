@@ -52,10 +52,17 @@ export default tseslint.config(
       ...react.configs.recommended.rules,
       ...react.configs["jsx-runtime"].rules,
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // Entry-файлы (main.tsx) и роутер осознанно держат рядом маленькие
+      // обёртки и объекты (router): выносить их ради fast refresh не нужно.
+      "react-refresh/only-export-components": "off",
       ...importPlugin.configs.recommended.rules,
       ...security.configs.recommended.rules,
       "react/prop-types": "off",
+      // Шумные эвристики eslint-plugin-security: дают ложные срабатывания
+      // на обычном коде (obj[key], сравнение строк в тестах/моках).
+      // Реальных уязвимостей не находят, только мусор в выводе lint.
+      "security/detect-object-injection": "off",
+      "security/detect-possible-timing-attacks": "off",
     },
   },
   {

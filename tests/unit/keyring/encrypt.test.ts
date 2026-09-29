@@ -124,9 +124,9 @@ describe("keyring/encrypt", () => {
     }
 
     const sigBytes = new Uint8Array(0);
-    await expect(
-      decryptText(tampered, sigBytes, alicePub, bobPriv),
-    ).rejects.toThrow(/modification detected/i);
+    await expect(decryptText(tampered, sigBytes, alicePub, bobPriv)).rejects.toThrow(
+      /modification detected/i,
+    );
   });
 
   it("decryptText with a wrong sender verification key returns verified: false", async () => {
@@ -147,9 +147,7 @@ describe("keyring/encrypt", () => {
 
     // Alice's private key is not a recipient of the session key, so
     // openpgp cannot unwrap it and must throw.
-    await expect(
-      decryptText(encrypted, signature, alicePub, alicePriv),
-    ).rejects.toThrow();
+    await expect(decryptText(encrypted, signature, alicePub, alicePriv)).rejects.toThrow();
   });
 
   it("encryptFile + decryptFile round-trip preserves binary data byte-for-byte", async () => {
@@ -161,11 +159,7 @@ describe("keyring/encrypt", () => {
 
   it("encryptText accepts the same recipient listed twice", async () => {
     const plaintext = "Multi-recipient message";
-    const { encrypted, signature } = await encryptText(
-      plaintext,
-      [bobPub, bobPub],
-      alicePriv,
-    );
+    const { encrypted, signature } = await encryptText(plaintext, [bobPub, bobPub], alicePriv);
     const result = await decryptText(encrypted, signature, alicePub, bobPriv);
     expect(result.text).toBe(plaintext);
     expect(result.verified).toBe(true);

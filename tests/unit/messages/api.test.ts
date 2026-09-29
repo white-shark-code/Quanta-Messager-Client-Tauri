@@ -8,10 +8,7 @@ import {
 } from "@/features/messages/api";
 import { configureClient } from "@/infra/apiClient";
 
-import {
-  capturedMessageApi,
-  resetMessageApiCaptures,
-} from "../../mocks/handlers";
+import { capturedMessageApi, resetMessageApiCaptures } from "../../mocks/handlers";
 import { server } from "../../mocks/server";
 
 const CHAT_PRIVATE = "11111111-2222-3333-4444-555555555555";

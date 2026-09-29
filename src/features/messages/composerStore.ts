@@ -76,9 +76,7 @@ export const useComposerStore = create<ComposerState>()(
               ...draft,
               mediaFiles: draft.mediaFiles.map((m) => {
                 if (m.id !== mediaId) return m;
-                return progress !== undefined
-                  ? { ...m, status, progress }
-                  : { ...m, status };
+                return progress !== undefined ? { ...m, status, progress } : { ...m, status };
               }),
             },
           },

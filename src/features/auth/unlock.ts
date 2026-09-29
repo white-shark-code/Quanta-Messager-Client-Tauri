@@ -35,9 +35,7 @@ export async function unlockWithPassphrase(
   // reject with a low-level file-not-found error after a costly
   // Argon2id derivation that was guaranteed to be wasted.
   if (!(await hasKeystore(userId))) {
-    throw new Error(
-      "Keystore file is missing on disk. Please create one in /create-keystore.",
-    );
+    throw new Error("Keystore file is missing on disk. Please create one in /create-keystore.");
   }
   const effectivePgpPass = pgpPassphrase ?? keystorePassphrase;
   const payload = await readKeystore(userId, keystorePassphrase);

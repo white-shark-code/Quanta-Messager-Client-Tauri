@@ -235,9 +235,7 @@ export function usePrivateMessages(
         limit: PAGE_LIMIT,
       }),
     getNextPageParam: (lastPage, allPages) =>
-      lastPage.items.length === PAGE_LIMIT
-        ? allPages.flatMap((p) => p.items).length
-        : undefined,
+      lastPage.items.length === PAGE_LIMIT ? allPages.flatMap((p) => p.items).length : undefined,
     select: (data) => ({
       pages: data.pages,
       // Server returns oldest-first; reverse so the UI can render
@@ -290,9 +288,7 @@ export function useGroupMessages(
         limit: PAGE_LIMIT,
       }),
     getNextPageParam: (lastPage, allPages) =>
-      lastPage.items.length === PAGE_LIMIT
-        ? allPages.flatMap((p) => p.items).length
-        : undefined,
+      lastPage.items.length === PAGE_LIMIT ? allPages.flatMap((p) => p.items).length : undefined,
     select: (data) => ({
       pages: data.pages,
       items: data.pages.flatMap((p) => p.items).reverse(),
@@ -373,10 +369,7 @@ export function useDecryptedMessage(
  * here so the query-key shape lives in exactly one place and stays in
  * sync with the hooks above.
  */
-export function useInvalidateMessages(): (
-  chatId: string,
-  kind?: MessagesKind,
-) => Promise<void> {
+export function useInvalidateMessages(): (chatId: string, kind?: MessagesKind) => Promise<void> {
   const queryClient = useQueryClient();
   return async (chatId: string, kind: MessagesKind = "private") => {
     await queryClient.invalidateQueries({

@@ -90,8 +90,12 @@ describe("events/api", () => {
 
   describe("markDialogRead", () => {
     it("calls POST /event/dialog/readed/:eventId with an empty JSON body", async () => {
-      let captured: { method: string; url: string; raw: string; contentType: string | null } | null =
-        null;
+      let captured: {
+        method: string;
+        url: string;
+        raw: string;
+        contentType: string | null;
+      } | null = null;
 
       server.use(
         http.post(
@@ -104,7 +108,7 @@ describe("events/api", () => {
               raw,
               contentType: request.headers.get("Content-Type"),
             };
-            expect(params["eventId"]).toBe("evt-1");
+            expect(params.eventId).toBe("evt-1");
             return new HttpResponse("", {
               status: 200,
               headers: { "Content-Type": "text/html" },
@@ -124,8 +128,12 @@ describe("events/api", () => {
 
   describe("markGroupRead", () => {
     it("calls POST /event/group/readed/:eventId with an empty JSON body", async () => {
-      let captured: { method: string; url: string; raw: string; contentType: string | null } | null =
-        null;
+      let captured: {
+        method: string;
+        url: string;
+        raw: string;
+        contentType: string | null;
+      } | null = null;
 
       server.use(
         http.post(
@@ -138,7 +146,7 @@ describe("events/api", () => {
               raw,
               contentType: request.headers.get("Content-Type"),
             };
-            expect(params["eventId"]).toBe("gevt-1");
+            expect(params.eventId).toBe("gevt-1");
             return new HttpResponse("", {
               status: 200,
               headers: { "Content-Type": "text/html" },

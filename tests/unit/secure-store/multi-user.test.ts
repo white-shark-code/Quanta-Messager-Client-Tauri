@@ -9,37 +9,40 @@ const indexState = vi.hoisted(() => ({
 
 vi.mock("@/infra/tauriBridge", () => {
   return {
-    readKeystoreBuffer: vi.fn(async (userId: string): Promise<Uint8Array> => {
+    readKeystoreBuffer: vi.fn((userId: string): Promise<Uint8Array> => {
       const v = storage.get(`keystore-${userId}`);
       if (!v) {
-        throw new Error(`Keystore not found for user ${userId}`);
+        return Promise.reject(new Error(`Keystore not found for user ${userId}`));
       }
-      return new Uint8Array(v);
+      return Promise.resolve(new Uint8Array(v));
     }),
-    writeKeystoreBuffer: vi.fn(async (userId: string, data: Uint8Array): Promise<void> => {
+    writeKeystoreBuffer: vi.fn((userId: string, data: Uint8Array): Promise<void> => {
       storage.set(`keystore-${userId}`, new Uint8Array(data));
+      return Promise.resolve();
     }),
-    hasKeystore: vi.fn(async (userId: string): Promise<boolean> => {
-      return storage.has(`keystore-${userId}`);
+    hasKeystore: vi.fn((userId: string): Promise<boolean> => {
+      return Promise.resolve(storage.has(`keystore-${userId}`));
     }),
-    deleteKeystoreFile: vi.fn(async (userId: string): Promise<void> => {
+    deleteKeystoreFile: vi.fn((userId: string): Promise<void> => {
       storage.delete(`keystore-${userId}`);
+      return Promise.resolve();
     }),
-    readIndexBuffer: vi.fn(async (): Promise<Uint8Array> => {
+    readIndexBuffer: vi.fn((): Promise<Uint8Array> => {
       if (indexState.nextReadError) {
         const e = indexState.nextReadError;
         indexState.nextReadError = null;
-        throw e;
+        return Promise.reject(e);
       }
-      return new Uint8Array(indexState.bytes);
+      return Promise.resolve(new Uint8Array(indexState.bytes));
     }),
-    writeIndexBuffer: vi.fn(async (data: Uint8Array): Promise<void> => {
+    writeIndexBuffer: vi.fn((data: Uint8Array): Promise<void> => {
       if (indexState.nextWriteError) {
         const e = indexState.nextWriteError;
         indexState.nextWriteError = null;
-        throw e;
+        return Promise.reject(e);
       }
       indexState.bytes = new Uint8Array(data);
+      return Promise.resolve();
     }),
   };
 });
@@ -55,7 +58,7 @@ import {
 } from "@/features/secure-store/store";
 import { hasKeystore } from "@/infra/tauriBridge";
 import { decrypt, encrypt } from "@/features/secure-store/cipher";
-import { parse, serialize } from "@/features/secure-store/format";
+import { parse } from "@/features/secure-store/format";
 import type { KeystorePayload } from "@/features/secure-store/types";
 
 const { FAST_KDF_PARAMS } = vi.hoisted(() => ({
@@ -66,14 +69,14 @@ vi.mock("@/features/secure-store/kdf", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/secure-store/kdf")>();
   return {
     ...actual,
-    deriveKey: vi.fn(async (passphrase: string, params: { salt: Uint8Array }): Promise<Uint8Array> => {
+    deriveKey: vi.fn((passphrase: string, params: { salt: Uint8Array }): Promise<Uint8Array> => {
       const salt = params.salt;
       const key = new Uint8Array(32);
       const len = Math.max(passphrase.length, 1);
       for (let i = 0; i < 32; i++) {
         key[i] = ((passphrase.charCodeAt(i % len) ?? 0) ^ (salt[i % salt.length] ?? 0)) & 0xff;
       }
-      return key;
+      return Promise.resolve(key);
     }),
     DEFAULT_KDF_PARAMS: {
       ...actual.DEFAULT_KDF_PARAMS,
@@ -206,7 +209,7 @@ describe("secure-store multi-user — format round-trip (ChaCha20-Poly1305)", ()
     const stored = storage.get(`keystore-${USER_A}`);
     expect(stored).toBeDefined();
 
-    const parsed = parse(stored as Uint8Array);
+    const parsed = parse(stored!);
     expect(parsed.ciphertext.length).toBeGreaterThan(0);
 
     expect(encrypt).toBeDefined();

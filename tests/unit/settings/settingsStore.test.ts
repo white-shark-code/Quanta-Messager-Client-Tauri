@@ -11,33 +11,35 @@ vi.mock("@tauri-apps/plugin-store", () => {
       this.path = path;
     }
 
-    async init(): Promise<void> {
+    init(): Promise<void> {
       return Promise.resolve();
     }
 
-    async get<T>(key: string): Promise<T | undefined> {
-      if (!storeState.data.has(key)) return undefined;
-      return storeState.data.get(key) as T;
+    get<T>(key: string): Promise<T | undefined> {
+      if (!storeState.data.has(key)) return Promise.resolve(undefined);
+      return Promise.resolve(storeState.data.get(key) as T);
     }
 
-    async set(key: string, value: unknown): Promise<void> {
+    set(key: string, value: unknown): Promise<void> {
       storeState.data.set(key, value);
-    }
-
-    async save(): Promise<void> {
       return Promise.resolve();
     }
 
-    async clear(): Promise<void> {
+    save(): Promise<void> {
+      return Promise.resolve();
+    }
+
+    clear(): Promise<void> {
       storeState.data.clear();
+      return Promise.resolve();
     }
 
-    async delete(key: string): Promise<boolean> {
-      return storeState.data.delete(key);
+    delete(key: string): Promise<boolean> {
+      return Promise.resolve(storeState.data.delete(key));
     }
 
-    async has(key: string): Promise<boolean> {
-      return storeState.data.has(key);
+    has(key: string): Promise<boolean> {
+      return Promise.resolve(storeState.data.has(key));
     }
   }
 
@@ -45,7 +47,7 @@ vi.mock("@tauri-apps/plugin-store", () => {
 });
 
 describe("settings/settingsStore", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     storeState.data.clear();
     vi.resetModules();
   });
@@ -101,9 +103,7 @@ describe("settings/settingsStore", () => {
     await useSettingsStore.getState().hydrate();
     expect(useSettingsStore.getState().hydrated).toBe(true);
 
-    await useSettingsStore
-      .getState()
-      .set("language", "vi");
+    await useSettingsStore.getState().set("language", "vi");
     expect(useSettingsStore.getState().language).toBe("vi");
 
     await useSettingsStore.getState().hydrate();

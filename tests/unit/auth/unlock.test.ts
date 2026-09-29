@@ -1,19 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { readKeystoreMock, importPrivateKeyMock, importPublicKeyMock, setKeysMock, hasKeystoreMock, configureClientMock } = vi.hoisted(
-  () => ({
-    readKeystoreMock: vi.fn(),
-    importPrivateKeyMock: vi.fn(),
-    importPublicKeyMock: vi.fn(),
-    setKeysMock: vi.fn(),
-    hasKeystoreMock: vi.fn(),
-    configureClientMock: vi.fn(),
-  }),
-);
+const {
+  readKeystoreMock,
+  importPrivateKeyMock,
+  importPublicKeyMock,
+  setKeysMock,
+  hasKeystoreMock,
+  configureClientMock,
+} = vi.hoisted(() => ({
+  readKeystoreMock: vi.fn(),
+  importPrivateKeyMock: vi.fn(),
+  importPublicKeyMock: vi.fn(),
+  setKeysMock: vi.fn(),
+  hasKeystoreMock: vi.fn(),
+  configureClientMock: vi.fn(),
+}));
 
 vi.mock("@/features/secure-store/store", () => {
   return {
-    readKeystore: (...args: unknown[]) => readKeystoreMock(...args),
+    readKeystore: (...args: unknown[]): unknown => readKeystoreMock(...args) as unknown,
     updateKeystoreToken: vi.fn(),
     writeKeystore: vi.fn(),
     upsertIndexEntry: vi.fn(),
@@ -22,8 +27,8 @@ vi.mock("@/features/secure-store/store", () => {
 
 vi.mock("@/features/keyring/encrypt", () => {
   return {
-    importPrivateKey: (...args: unknown[]) => importPrivateKeyMock(...args),
-    importPublicKey: (...args: unknown[]) => importPublicKeyMock(...args),
+    importPrivateKey: (...args: unknown[]): unknown => importPrivateKeyMock(...args) as unknown,
+    importPublicKey: (...args: unknown[]): unknown => importPublicKeyMock(...args) as unknown,
   };
 });
 
@@ -31,7 +36,7 @@ vi.mock("@/features/keyring/keyringStore", () => {
   return {
     useKeyringStore: {
       getState: () => ({
-        setKeys: (...args: unknown[]) => setKeysMock(...args),
+        setKeys: (...args: unknown[]): unknown => setKeysMock(...args) as unknown,
       }),
     },
   };
@@ -39,13 +44,13 @@ vi.mock("@/features/keyring/keyringStore", () => {
 
 vi.mock("@/infra/tauriBridge", () => {
   return {
-    hasKeystore: (...args: unknown[]) => hasKeystoreMock(...args),
+    hasKeystore: (...args: unknown[]): unknown => hasKeystoreMock(...args) as unknown,
   };
 });
 
 vi.mock("@/infra/apiClient", () => {
   return {
-    configureClient: (...args: unknown[]) => configureClientMock(...args),
+    configureClient: (...args: unknown[]): unknown => configureClientMock(...args) as unknown,
   };
 });
 

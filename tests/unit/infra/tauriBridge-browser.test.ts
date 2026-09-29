@@ -115,7 +115,6 @@ describe("tauriBridge — browser fallback (keystore via localStorage)", () => {
     let seed = 0x1234_5678;
     for (let i = 0; i < SIZE; i += 1) {
       seed = (seed * 1103515245 + 12345) & 0x7fff_ffff;
-      // eslint-disable-next-line security/detect-object-injection -- typed-array index write with loop-bounded `i`
       data[i] = seed & 0xff;
     }
     await writeKeystoreBuffer(USER_A, data);
@@ -128,9 +127,9 @@ describe("tauriBridge — browser fallback (keystore via localStorage)", () => {
 
 describe("tauriBridge — browser fallback (functions that throw)", () => {
   it("writeFileBuffer() throws in browser mode", async () => {
-    await expect(
-      writeFileBuffer("/tmp/x.bin", new Uint8Array([0])),
-    ).rejects.toThrow(/browser mode/);
+    await expect(writeFileBuffer("/tmp/x.bin", new Uint8Array([0]))).rejects.toThrow(
+      /browser mode/,
+    );
   });
 
   it("pickFiles() throws in browser mode", async () => {
@@ -148,9 +147,7 @@ describe("tauriBridge — browser fallback (functions that throw)", () => {
   });
 
   it("getAppDataDir() throws in browser mode (Tauri-only command)", async () => {
-    await expect(getAppDataDir()).rejects.toThrow(
-      /App data dir only available in Tauri runtime/,
-    );
+    await expect(getAppDataDir()).rejects.toThrow(/App data dir only available in Tauri runtime/);
   });
 });
 

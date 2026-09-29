@@ -4,3 +4,11 @@ src-tauri/target
 *.log
 .env.local
 .env.*.local
+# tsc emit cache — в репозитории храним только .ts/.tsx исходники
+*.tsbuildinfo
+# страховка от случайного `tsc` с emit: сгенерированные .js/.d.ts
+# рядом с .ts/.tsx (Vite и vitest используют .ts напрямую)
+vite.config.js
+vite.config.d.ts
+vitest.config.js
+vitest.config.d.ts

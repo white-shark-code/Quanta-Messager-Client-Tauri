@@ -1,11 +1,11 @@
 export interface FastApiValidationItem {
-  readonly loc?: ReadonlyArray<unknown>;
+  readonly loc?: readonly unknown[];
   readonly msg?: string;
   readonly type?: string;
 }
 
 export interface FastApiErrorBody {
-  readonly detail?: string | ReadonlyArray<FastApiValidationItem>;
+  readonly detail?: string | readonly FastApiValidationItem[];
 }
 
 export class ApiError extends Error {

@@ -67,11 +67,7 @@ export function UnlockRoute(): JSX.Element | null {
     setError(null);
     setBusy(true);
     try {
-      await unlockWithPassphrase(
-        userId,
-        passphrase,
-        pgpDiffers ? pgpPassphrase : undefined,
-      );
+      await unlockWithPassphrase(userId, passphrase, pgpDiffers ? pgpPassphrase : undefined);
       navigate("/chats", { replace: true });
     } catch (e) {
       setError(toUserMessage(e));
@@ -140,12 +136,7 @@ export function UnlockRoute(): JSX.Element | null {
                 />
               )}
               {error !== null && <Alert color="red">{error}</Alert>}
-              <Button
-                type="submit"
-                loading={busy}
-                disabled={passphrase.length === 0}
-                fullWidth
-              >
+              <Button type="submit" loading={busy} disabled={passphrase.length === 0} fullWidth>
                 {t("auth.unlock.submit")}
               </Button>
             </Stack>

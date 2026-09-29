@@ -5,7 +5,6 @@ import { MantineProvider } from "@mantine/core";
 import { RouterProvider } from "react-router-dom";
 
 import "@mantine/core/styles.css";
-import "./i18n";
 
 import i18n, { LANGUAGE_STORAGE_KEY } from "./i18n";
 import { router } from "./routes";
@@ -44,7 +43,7 @@ function I18nSync(): null {
   return null;
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <MantineProvider theme={theme} defaultColorScheme="dark">

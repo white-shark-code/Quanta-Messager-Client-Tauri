@@ -23,7 +23,6 @@
 import {
   readKeystoreBuffer,
   writeKeystoreBuffer,
-  hasKeystore,
   readIndexBuffer,
   writeIndexBuffer,
   deleteKeystoreFile,
@@ -124,10 +123,7 @@ export async function writeKeystore(
   await writeKeystoreBuffer(userId, buf);
 }
 
-export async function readKeystore(
-  userId: string,
-  passphrase: string,
-): Promise<KeystorePayload> {
+export async function readKeystore(userId: string, passphrase: string): Promise<KeystorePayload> {
   const buf = await readKeystoreBuffer(userId);
   const { kdfSalt, chachaNonce, ciphertext } = parse(buf);
   const key = await deriveKey(passphrase, {

@@ -9,13 +9,13 @@
 
 ## Список репортов
 
-| # | Файл | Приоритет | Суть |
-|---|---|---|---|
-| 01 | [`01-user-search.md`](./01-user-search.md) | 🟡 medium | Нет эндпоинта для получения профилей нескольких пользователей по UUID |
-| 02 | [`02-group-pgp-key.md`](./02-group-pgp-key.md) | 🔴 high | Модель `GroupChat.public_key` логически некорректна |
-| 03 | [`03-token-refresh.md`](./03-token-refresh.md) | 🟡 medium | Нет refresh-токенов → UX-проблема |
-| 04 | [`04-voice-video-ideas.md`](./04-voice-video-ideas.md) | 🟢 low | Идеи для голосовых/видео (отдельный этап) |
-| 05 | [`05-misc-observations.md`](./05-misc-observations.md) | 🟢 low | Различные мелкие наблюдения |
+| #   | Файл                                                   | Приоритет | Суть                                                                  |
+| --- | ------------------------------------------------------ | --------- | --------------------------------------------------------------------- |
+| 01  | [`01-user-search.md`](./01-user-search.md)             | 🟡 medium | Нет эндпоинта для получения профилей нескольких пользователей по UUID |
+| 02  | [`02-group-pgp-key.md`](./02-group-pgp-key.md)         | 🔴 high   | Модель `GroupChat.public_key` логически некорректна                   |
+| 03  | [`03-token-refresh.md`](./03-token-refresh.md)         | 🟡 medium | Нет refresh-токенов → UX-проблема                                     |
+| 04  | [`04-voice-video-ideas.md`](./04-voice-video-ideas.md) | 🟢 low    | Идеи для голосовых/видео (отдельный этап)                             |
+| 05  | [`05-misc-observations.md`](./05-misc-observations.md) | 🟢 low    | Различные мелкие наблюдения                                           |
 
 ---
 
@@ -29,9 +29,9 @@
 
 ## Контактные лица
 
-| Роль | Имя | Контакт |
-|---|---|---|
-| Frontend lead | — | — |
-| Backend lead | — | — |
+| Роль          | Имя | Контакт |
+| ------------- | --- | ------- |
+| Frontend lead | —   | —       |
+| Backend lead  | —   | —       |
 
 > Заполняется по факту.

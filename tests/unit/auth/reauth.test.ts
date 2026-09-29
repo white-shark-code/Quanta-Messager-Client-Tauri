@@ -20,20 +20,22 @@ const {
 
 vi.mock("@/features/auth/unlock", () => {
   return {
-    unlockWithPassphrase: (...args: unknown[]) => unlockWithPassphraseMock(...args),
+    unlockWithPassphrase: (...args: unknown[]): unknown =>
+      unlockWithPassphraseMock(...args) as unknown,
   };
 });
 
 vi.mock("@/features/auth/api", () => {
   return {
-    login: (...args: unknown[]) => loginMock(...args),
-    me: (...args: unknown[]) => meMock(...args),
+    login: (...args: unknown[]): unknown => loginMock(...args) as unknown,
+    me: (...args: unknown[]): unknown => meMock(...args) as unknown,
   };
 });
 
 vi.mock("@/features/secure-store/store", () => {
   return {
-    updateKeystoreToken: (...args: unknown[]) => updateKeystoreTokenMock(...args),
+    updateKeystoreToken: (...args: unknown[]): unknown =>
+      updateKeystoreTokenMock(...args) as unknown,
     readKeystore: vi.fn(),
     writeKeystore: vi.fn(),
     upsertIndexEntry: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock("@/features/secure-store/store", () => {
 
 vi.mock("@/infra/apiClient", () => {
   return {
-    configureClient: (...args: unknown[]) => configureClientMock(...args),
+    configureClient: (...args: unknown[]): unknown => configureClientMock(...args) as unknown,
   };
 });
 
@@ -113,8 +115,10 @@ const FAKE_KEYSTORE: KeystorePayload = {
   version: 1,
   user: { id: USER_ID, email: USER_EMAIL },
   accessToken: "old-token",
-  privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfake\n-----END PGP PRIVATE KEY BLOCK-----",
-  publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfake\n-----END PGP PUBLIC KEY BLOCK-----",
+  privateKeyArmored:
+    "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfake\n-----END PGP PRIVATE KEY BLOCK-----",
+  publicKeyArmored:
+    "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfake\n-----END PGP PUBLIC KEY BLOCK-----",
   fingerprint: "ABCD1234",
   dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
@@ -149,23 +153,24 @@ describe("auth/reauth", () => {
 
   it("calls unlock → login → updateKeystoreToken → configureClient → me → setUser in order", async () => {
     const callOrder: string[] = [];
-    unlockWithPassphraseMock.mockImplementation(async () => {
+    unlockWithPassphraseMock.mockImplementation(() => {
       callOrder.push("unlock");
+      return Promise.resolve();
     });
-    loginMock.mockImplementation(async () => {
+    loginMock.mockImplementation(() => {
       callOrder.push("login");
-      return FAKE_TOKEN;
+      return Promise.resolve(FAKE_TOKEN);
     });
-    updateKeystoreTokenMock.mockImplementation(async () => {
+    updateKeystoreTokenMock.mockImplementation(() => {
       callOrder.push("updateKeystoreToken");
-      return FAKE_KEYSTORE;
+      return Promise.resolve(FAKE_KEYSTORE);
     });
     configureClientMock.mockImplementation(() => {
       callOrder.push("configureClient");
     });
-    meMock.mockImplementation(async () => {
+    meMock.mockImplementation(() => {
       callOrder.push("me");
-      return FAKE_USER;
+      return Promise.resolve(FAKE_USER);
     });
     setUserSpy.mockImplementation(() => {
       callOrder.push("setUser");

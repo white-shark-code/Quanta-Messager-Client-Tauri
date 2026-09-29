@@ -33,21 +33,9 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import {
-  type UnlistenFn,
-  listen,
-} from "@tauri-apps/api/event";
-import {
-  BaseDirectory,
-  exists,
-  mkdir,
-  readFile,
-  writeFile,
-} from "@tauri-apps/plugin-fs";
-import {
-  open as openDialog,
-  save as saveDialog,
-} from "@tauri-apps/plugin-dialog";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { BaseDirectory, exists, mkdir, readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
   isPermissionGranted,
   requestPermission,
@@ -107,7 +95,12 @@ function userKeyFilename(userId: string): string {
   // Defensive: refuse path-traversal in userId (it's a UUID from the
   // server, so this should never happen, but a stray "../" would
   // otherwise be able to escape the keystores directory).
-  if (userId.length === 0 || userId.includes("/") || userId.includes("\\") || userId.includes("..")) {
+  if (
+    userId.length === 0 ||
+    userId.includes("/") ||
+    userId.includes("\\") ||
+    userId.includes("..")
+  ) {
     throw new Error(`Invalid userId for keystore path: ${userId}`);
   }
   return `${KEYSTORE_DIR}/${userId}.qks`;
@@ -257,7 +250,6 @@ export async function writeIndexBuffer(data: Uint8Array): Promise<void> {
  * ------------------------------------------------------------------ */
 
 const DIALOG_DIR = "dialogs";
-const DIALOG_INDEX_FILENAME = `${DIALOG_DIR}/index.json`;
 
 function safeSegment(s: string): string {
   if (s.length === 0 || s.includes("/") || s.includes("\\") || s.includes("..")) {
@@ -385,11 +377,9 @@ export async function writeDialogIndex(userId: string, chatIds: string[]): Promi
     return;
   }
   await ensureDialogsDir(userId);
-  await writeFile(
-    dialogIndexFilename(userId),
-    new TextEncoder().encode(json),
-    { baseDir: BaseDirectory.AppData },
-  );
+  await writeFile(dialogIndexFilename(userId), new TextEncoder().encode(json), {
+    baseDir: BaseDirectory.AppData,
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -409,7 +399,9 @@ export async function writeDialogIndex(userId: string, chatIds: string[]): Promi
  */
 export async function writeFileBuffer(path: string, data: Uint8Array): Promise<void> {
   if (!isTauri()) {
-    throw new Error("File picker not available in browser mode — use Tauri runtime for desktop features");
+    throw new Error(
+      "File picker not available in browser mode — use Tauri runtime for desktop features",
+    );
   }
   await writeFile(path, data);
 }
@@ -430,7 +422,9 @@ export async function writeFileBuffer(path: string, data: Uint8Array): Promise<v
  */
 export async function pickFiles(multiple = false): Promise<string[] | null> {
   if (!isTauri()) {
-    throw new Error("File picker not available in browser mode — use Tauri runtime for desktop features");
+    throw new Error(
+      "File picker not available in browser mode — use Tauri runtime for desktop features",
+    );
   }
   const result = await openDialog({
     multiple,
@@ -458,14 +452,14 @@ export async function pickFiles(multiple = false): Promise<string[] | null> {
  * @param options.filters Optional file-type filters for the dialog.
  * @returns Selected absolute path, or `null` if the user cancelled.
  */
-export async function pickSaveFile(
-  options: {
-    defaultPath: string;
-    filters?: { name: string; extensions: string[] }[];
-  },
-): Promise<string | null> {
+export async function pickSaveFile(options: {
+  defaultPath: string;
+  filters?: { name: string; extensions: string[] }[];
+}): Promise<string | null> {
   if (!isTauri()) {
-    throw new Error("File picker not available in browser mode — use Tauri runtime for desktop features");
+    throw new Error(
+      "File picker not available in browser mode — use Tauri runtime for desktop features",
+    );
   }
   return saveDialog({
     defaultPath: options.defaultPath,
@@ -527,9 +521,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
  * Deep-link URL parsed into a typed route. Unrecognized URLs collapse
  * to `"unknown"` so callers can safely ignore them.
  */
-export type DeepLinkRoute =
-  | { kind: "chat"; id: string }
-  | { kind: "unknown" };
+export type DeepLinkRoute = { kind: "chat"; id: string } | { kind: "unknown" };
 
 /**
  * Subscribe to incoming deep-link URLs (`quant://...`).
@@ -542,11 +534,11 @@ export type DeepLinkRoute =
  * @param handler Called with the list of URLs the OS handed to the
  *   app on a cold start or runtime activation.
  */
-export async function onDeepLink(
-  handler: (urls: string[]) => void,
-): Promise<UnlistenFn> {
+export async function onDeepLink(handler: (urls: string[]) => void): Promise<UnlistenFn> {
   if (!isTauri()) {
-    return () => {};
+    return () => {
+      // No-op outside Tauri runtime — no listener to detach.
+    };
   }
   return onOpenUrl((urls) => {
     handler(urls);
@@ -618,7 +610,9 @@ export async function onAppEvent(
   handler: () => void,
 ): Promise<UnlistenFn> {
   if (!isTauri()) {
-    return () => {};
+    return () => {
+      // No-op outside Tauri runtime — no listener to detach.
+    };
   }
   return listen(appEventName(event), () => {
     handler();
@@ -632,11 +626,11 @@ export async function onAppEvent(
  * Rust command (see `docs/design.md` §8.1). Frontend handlers
  * typically wipe in-memory keys and route back to the lock screen.
  */
-export async function onLockScreenRequest(
-  handler: () => void,
-): Promise<UnlistenFn> {
+export async function onLockScreenRequest(handler: () => void): Promise<UnlistenFn> {
   if (!isTauri()) {
-    return () => {};
+    return () => {
+      // No-op outside Tauri runtime — no listener to detach.
+    };
   }
   return listen("app://lock", () => {
     handler();

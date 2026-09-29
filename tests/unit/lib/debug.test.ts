@@ -1,12 +1,5 @@
 // @vitest-environment jsdom
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock @tauri-apps/plugin-fs so the Tauri-path tests can observe
 // readFile/writeFile calls without actually touching the filesystem.
@@ -193,7 +186,7 @@ describe("lib/debug — debugLog (no DEV gate)", () => {
     // Browser path: localStorage gets the entry.
     const raw = localStorage.getItem(LS_KEY);
     expect(raw).not.toBeNull();
-    const arr = JSON.parse(raw as string) as string[];
+    const arr = JSON.parse(raw!) as string[];
     expect(arr.some((e) => e.includes("[prod]"))).toBe(true);
   });
 });

@@ -49,9 +49,6 @@ export async function getUserPublicKey(userId: string): Promise<PublicKeyRespons
   return {
     user_id: wire.user_id,
     has_public_key: wire.has_public_key,
-    public_key:
-      wire.has_public_key && wire.public_key !== null
-        ? b64ToText(wire.public_key)
-        : null,
+    public_key: wire.has_public_key && wire.public_key !== null ? b64ToText(wire.public_key) : null,
   };
 }

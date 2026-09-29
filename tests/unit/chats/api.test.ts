@@ -121,7 +121,7 @@ describe("chats/api", () => {
         http.get("http://localhost:8000/messages/private-chat/:chatId", ({ request, params }) => {
           captured = { method: request.method, url: request.url };
           return HttpResponse.json({
-            id: params["chatId"],
+            id: params.chatId,
             name: "Bob",
             user0: "user-1",
             user1: "user-2",
@@ -133,7 +133,9 @@ describe("chats/api", () => {
       const chat = await getPrivateChat("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
 
       expect(captured?.method).toBe("GET");
-      expect(captured?.url).toContain("/messages/private-chat/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+      expect(captured?.url).toContain(
+        "/messages/private-chat/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      );
       expect(chat.id).toBe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
       expect(chat.user0).toBe("user-1");
       expect(chat.user1).toBe("user-2");
@@ -163,7 +165,7 @@ describe("chats/api", () => {
 
       expect(captured).not.toBeNull();
       expect(captured?.method).toBe("POST");
-      const parsed = JSON.parse(captured?.raw ?? "{}") as {
+      const parsed = JSON.parse((captured?.raw ?? "{}") as string) as {
         name: string;
         user: string;
       };
@@ -180,25 +182,24 @@ describe("chats/api", () => {
     it("calls DELETE /messages/private-chat/:chatId/ with a trailing slash", async () => {
       let captured: { method: string; url: string } | null = null;
       server.use(
-        http.delete(
-          "http://localhost:8000/messages/private-chat/:chatId/",
-          ({ request }) => {
-            captured = { method: request.method, url: request.url };
-            return HttpResponse.json({
-              id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-              name: "deleted",
-              user0: "user-1",
-              user1: "user-2",
-              create_at: "2026-09-08T00:00:00Z",
-            });
-          },
-        ),
+        http.delete("http://localhost:8000/messages/private-chat/:chatId/", ({ request }) => {
+          captured = { method: request.method, url: request.url };
+          return HttpResponse.json({
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            name: "deleted",
+            user0: "user-1",
+            user1: "user-2",
+            create_at: "2026-09-08T00:00:00Z",
+          });
+        }),
       );
 
       const chat = await deletePrivateChat("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
 
       expect(captured?.method).toBe("DELETE");
-      expect(captured?.url).toContain("/messages/private-chat/dddddddd-dddd-4ddd-8ddd-dddddddddddd/");
+      expect(captured?.url).toContain(
+        "/messages/private-chat/dddddddd-dddd-4ddd-8ddd-dddddddddddd/",
+      );
       expect(chat.id).toBe("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
     });
   });
@@ -278,18 +279,15 @@ describe("chats/api", () => {
     it("calls POST /group-messages/group-chat/ with the request body and returns a GroupChat", async () => {
       let captured: { method: string; raw: string } | null = null;
       server.use(
-        http.post(
-          "http://localhost:8000/group-messages/group-chat/",
-          async ({ request }) => {
-            captured = { method: request.method, raw: await request.text() };
-            return HttpResponse.json({
-              id: "11111111-aaaa-4aaa-8aaa-111111111111",
-              name: "Engineering",
-              public_key: "BASE64PUBLICKEY",
-              create_at: "2026-09-08T00:00:00Z",
-            });
-          },
-        ),
+        http.post("http://localhost:8000/group-messages/group-chat/", async ({ request }) => {
+          captured = { method: request.method, raw: await request.text() };
+          return HttpResponse.json({
+            id: "11111111-aaaa-4aaa-8aaa-111111111111",
+            name: "Engineering",
+            public_key: "BASE64PUBLICKEY",
+            create_at: "2026-09-08T00:00:00Z",
+          });
+        }),
       );
 
       const group = await createGroupChat({
@@ -298,7 +296,7 @@ describe("chats/api", () => {
       });
 
       expect(captured?.method).toBe("POST");
-      const parsed = JSON.parse(captured?.raw ?? "{}") as {
+      const parsed = JSON.parse((captured?.raw ?? "{}") as string) as {
         name: string;
         public_key: string;
       };

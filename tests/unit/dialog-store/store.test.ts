@@ -8,39 +8,43 @@ const fsState = vi.hoisted(() => {
 vi.mock("@tauri-apps/plugin-fs", () => {
   const BaseDirectory = { AppData: 0 };
 
-  const readFile = vi.fn(async (path: string | URL): Promise<Uint8Array<ArrayBuffer>> => {
+  const readFile = vi.fn((path: string | URL): Promise<Uint8Array<ArrayBuffer>> => {
     const key = typeof path === "string" ? path : path.toString();
     const buf = fsState.files.get(key);
-    if (!buf) throw new Error(`File not found: ${key}`);
-    return new Uint8Array(buf);
+    if (!buf) return Promise.reject(new Error(`File not found: ${key}`));
+    return Promise.resolve(new Uint8Array(buf));
   });
 
   const writeFile = vi.fn(
-    async (path: string | URL, data: Uint8Array | ReadableStream<Uint8Array>): Promise<void> => {
+    (path: string | URL, data: Uint8Array | ReadableStream<Uint8Array>): Promise<void> => {
       const key = typeof path === "string" ? path : path.toString();
-      if (data instanceof Uint8Array) fsState.files.set(key, new Uint8Array(data));
-      else throw new Error("ReadableStream is not supported by the in-memory mock");
+      if (data instanceof Uint8Array) {
+        fsState.files.set(key, new Uint8Array(data));
+        return Promise.resolve();
+      }
+      return Promise.reject(new Error("ReadableStream is not supported by the in-memory mock"));
     },
   );
 
-  const exists = vi.fn(async (path: string | URL): Promise<boolean> => {
+  const exists = vi.fn((path: string | URL): Promise<boolean> => {
     const key = typeof path === "string" ? path : path.toString();
-    return fsState.files.has(key);
+    return Promise.resolve(fsState.files.has(key));
   });
 
-  const remove = vi.fn(async (path: string | URL): Promise<void> => {
+  const remove = vi.fn((path: string | URL): Promise<void> => {
     const key = typeof path === "string" ? path : path.toString();
     fsState.files.delete(key);
+    return Promise.resolve();
   });
 
-  const mkdir = vi.fn(async (_path: string | URL): Promise<void> => undefined);
+  const mkdir = vi.fn((): Promise<void> => Promise.resolve());
 
   return { BaseDirectory, readFile, writeFile, exists, remove, mkdir };
 });
 
 vi.mock("@tauri-apps/api/path", () => ({
-  appDataDir: vi.fn(async (): Promise<string> => "/mock-appdata"),
-  join: vi.fn(async (_base: string, ...rest: string[]): Promise<string> => rest.join("/")),
+  appDataDir: vi.fn((): Promise<string> => Promise.resolve("/mock-appdata")),
+  join: vi.fn((...args: string[]): Promise<string> => Promise.resolve(args.slice(1).join("/"))),
 }));
 
 import { useKeyringStore } from "@/features/keyring/keyringStore";
@@ -59,7 +63,7 @@ const CHAT_B = "chat-bbb";
 
 function b64(bytes: Uint8Array): string {
   let s = "";
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i] ?? 0);
+  for (const byte of bytes) s += String.fromCharCode(byte);
   return btoa(s);
 }
 
@@ -177,7 +181,7 @@ describe("dialog-store/store", () => {
 
     expect(await readDialog(USER, CHAT_A)).toEqual([]);
     expect(await readDialog(USER, CHAT_B)).toHaveLength(1);
-    expect((await listDialogs(USER))).not.toContain(CHAT_A);
+    expect(await listDialogs(USER)).not.toContain(CHAT_A);
   });
 
   it("readDialog бросает, когда dialogKey стёрт из памяти (после lock)", async () => {

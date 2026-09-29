@@ -3,7 +3,8 @@ import { IconLock, IconUsers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { isGroupChat, type AnyChat } from "../api";
+import { isGroupChat } from "../api";
+import type { AnyChat } from "../model";
 
 export interface ChatItemProps {
   chat: AnyChat;
@@ -30,7 +31,7 @@ export function ChatItem({ chat, unreadCount }: ChatItemProps): JSX.Element {
             <IconLock size={16} aria-label={t("common.a11y.privateChat")} />
           )}
           <Text fw={unreadCount > 0 ? 600 : 500} truncate>
-            {chat.name || chat.id}
+            {chat.name === "" ? chat.id : chat.name}
           </Text>
         </Group>
         {unreadCount > 0 && (

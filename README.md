@@ -13,23 +13,23 @@
 
 ## Stack / Стек
 
-| Component | Technology |
-|---|---|
-| Shell / Оболочка | Tauri 2 |
-| Language / Язык | TypeScript 5 (strict) |
-| UI / Интерфейс | React 18 + Mantine 7 |
-| Build / Сборка | Vite 5 |
+| Component         | Technology               |
+| ----------------- | ------------------------ |
+| Shell / Оболочка  | Tauri 2                  |
+| Language / Язык   | TypeScript 5 (strict)    |
+| UI / Интерфейс    | React 18 + Mantine 7     |
+| Build / Сборка    | Vite 5                   |
 | State / Состояние | TanStack Query + Zustand |
-| PGP | openpgp.js 6 |
+| PGP               | openpgp.js 6             |
 
-| Компонент | Технология |
-|---|---|
-| Оболочка | Tauri 2 |
-| Язык | TypeScript 5 (strict) |
-| Интерфейс | React 18 + Mantine 7 |
-| Сборка | Vite 5 |
+| Компонент | Технология               |
+| --------- | ------------------------ |
+| Оболочка  | Tauri 2                  |
+| Язык      | TypeScript 5 (strict)    |
+| Интерфейс | React 18 + Mantine 7     |
+| Сборка    | Vite 5                   |
 | Состояние | TanStack Query + Zustand |
-| PGP | openpgp.js 6 |
+| PGP       | openpgp.js 6             |
 
 ---
 
@@ -49,39 +49,41 @@ Backend API reference — в [`../Quant/server/docs/api.md`](../Quant/server/doc
 
 ### Host (this machine / этот хост)
 
-| Tool | Required | Status |
-|---|---|---|
-| Node.js | 20+ | ✅ 26.7.0 |
-| npm / pnpm / yarn | any | ✅ installed |
-| Rust | 1.74+ | ✅ 1.98.0 |
-| webkit2gtk-4.1 | yes (Linux) | ✅ 2.52.6 |
-| gtk4, libsoup3 | yes | ✅ |
-| libayatana-appindicator | yes | ✅ |
-| librsvg, patchelf | yes | ✅ |
-| gcc / clang / pkg-config | yes | ✅ |
-| cargo-tauri | yes | ⚠️ install via npm (see below) |
+| Tool                     | Required    | Status                         |
+| ------------------------ | ----------- | ------------------------------ |
+| Node.js                  | 20+         | ✅ 26.7.0                      |
+| npm / pnpm / yarn        | any         | ✅ installed                   |
+| Rust                     | 1.74+       | ✅ 1.98.0                      |
+| webkit2gtk-4.1           | yes (Linux) | ✅ 2.52.6                      |
+| gtk4, libsoup3           | yes         | ✅                             |
+| libayatana-appindicator  | yes         | ✅                             |
+| librsvg, patchelf        | yes         | ✅                             |
+| gcc / clang / pkg-config | yes         | ✅                             |
+| cargo-tauri              | yes         | ⚠️ install via npm (see below) |
 
-| Инструмент | Требуется | Статус |
-|---|---|---|
-| Node.js | 20+ | ✅ 26.7.0 |
-| npm / pnpm / yarn | любой | ✅ установлен |
-| Rust | 1.74+ | ✅ 1.98.0 |
-| webkit2gtk-4.1 | да (Linux) | ✅ 2.52.6 |
-| gtk4, libsoup3 | да | ✅ |
-| libayatana-appindicator | да | ✅ |
-| librsvg, patchelf | да | ✅ |
-| gcc / clang / pkg-config | да | ✅ |
-| cargo-tauri | да | ⚠️ установка через npm (см. ниже) |
+| Инструмент               | Требуется  | Статус                            |
+| ------------------------ | ---------- | --------------------------------- |
+| Node.js                  | 20+        | ✅ 26.7.0                         |
+| npm / pnpm / yarn        | любой      | ✅ установлен                     |
+| Rust                     | 1.74+      | ✅ 1.98.0                         |
+| webkit2gtk-4.1           | да (Linux) | ✅ 2.52.6                         |
+| gtk4, libsoup3           | да         | ✅                                |
+| libayatana-appindicator  | да         | ✅                                |
+| librsvg, patchelf        | да         | ✅                                |
+| gcc / clang / pkg-config | да         | ✅                                |
+| cargo-tauri              | да         | ⚠️ установка через npm (см. ниже) |
 
 ### Android build (not used on this host)
 
 The host is not configured for Android. To enable Android builds elsewhere:
+
 - JDK 17 (`pacman -S jdk17-openjdk`)
 - Android SDK (`cmdline-tools`, `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`)
 - Android NDK (`ndk;26.1.10909125`)
 - rustup + Rust Android targets: `aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android`
 
 Этот хост **не настроен** для Android. Для включения на другой машине:
+
 - JDK 17 (`pacman -S jdk17-openjdk`)
 - Android SDK (`cmdline-tools`, `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`)
 - Android NDK (`ndk;26.1.10909125`)
@@ -136,35 +138,35 @@ npm run build:android -- --aab
 
 ## Scripts / Скрипты
 
-| Command | EN | RU |
-|---|---|---|
-| `npm run dev` | Vite dev server only | Только Vite dev-server |
-| `npm run dev:tauri` | Vite + Tauri window | Vite + окно Tauri |
-| `npm run build` | Type check + Vite build | Проверка типов + сборка Vite |
-| `npm run build:tauri` | Production desktop build | Прод-сборка desktop |
-| `npm run build:android` | Android debug APK | Android debug APK |
-| `npm run lint` | ESLint flat config | ESLint flat config |
-| `npm run format` | Prettier write | Prettier форматирование |
-| `npm run typecheck` | `tsc --noEmit` | `tsc --noEmit` |
-| `npm run test` | Vitest unit tests | Vitest unit-тесты |
-| `npm run test:integration` | Vitest + local backend | Vitest + локальный backend |
-| `npm run test:e2e` | Playwright on built app | Playwright на собранном app |
-| `npm run test:remote` | Run all tests on dreamliner | Прогнать все тесты на dreamliner |
+| Command                    | EN                          | RU                               |
+| -------------------------- | --------------------------- | -------------------------------- |
+| `npm run dev`              | Vite dev server only        | Только Vite dev-server           |
+| `npm run dev:tauri`        | Vite + Tauri window         | Vite + окно Tauri                |
+| `npm run build`            | Type check + Vite build     | Проверка типов + сборка Vite     |
+| `npm run build:tauri`      | Production desktop build    | Прод-сборка desktop              |
+| `npm run build:android`    | Android debug APK           | Android debug APK                |
+| `npm run lint`             | ESLint flat config          | ESLint flat config               |
+| `npm run format`           | Prettier write              | Prettier форматирование          |
+| `npm run typecheck`        | `tsc --noEmit`              | `tsc --noEmit`                   |
+| `npm run test`             | Vitest unit tests           | Vitest unit-тесты                |
+| `npm run test:integration` | Vitest + local backend      | Vitest + локальный backend       |
+| `npm run test:e2e`         | Playwright on built app     | Playwright на собранном app      |
+| `npm run test:remote`      | Run all tests on dreamliner | Прогнать все тесты на dreamliner |
 
-| Команда | EN | RU |
-|---|---|---|
-| `npm run dev` | Только Vite dev-server | — |
-| `npm run dev:tauri` | Vite + окно Tauri | — |
-| `npm run build` | Проверка типов + сборка Vite | — |
-| `npm run build:tauri` | Прод-сборка desktop | — |
-| `npm run build:android` | Android debug APK | — |
-| `npm run lint` | ESLint flat config | — |
-| `npm run format` | Prettier форматирование | — |
-| `npm run typecheck` | `tsc --noEmit` | — |
-| `npm run test` | Vitest unit-тесты | — |
-| `npm run test:integration` | Vitest + локальный backend | — |
-| `npm run test:e2e` | Playwright на собранном app | — |
-| `npm run test:remote` | Прогнать все тесты на dreamliner | — |
+| Команда                    | EN                               | RU  |
+| -------------------------- | -------------------------------- | --- |
+| `npm run dev`              | Только Vite dev-server           | —   |
+| `npm run dev:tauri`        | Vite + окно Tauri                | —   |
+| `npm run build`            | Проверка типов + сборка Vite     | —   |
+| `npm run build:tauri`      | Прод-сборка desktop              | —   |
+| `npm run build:android`    | Android debug APK                | —   |
+| `npm run lint`             | ESLint flat config               | —   |
+| `npm run format`           | Prettier форматирование          | —   |
+| `npm run typecheck`        | `tsc --noEmit`                   | —   |
+| `npm run test`             | Vitest unit-тесты                | —   |
+| `npm run test:integration` | Vitest + локальный backend       | —   |
+| `npm run test:e2e`         | Playwright на собранном app      | —   |
+| `npm run test:remote`      | Прогнать все тесты на dreamliner | —   |
 
 ---
 
@@ -250,6 +252,7 @@ npm run test:remote
 ```
 
 What it does / Что делает:
+
 1. SSHs to `dreamliner` (preconfigured in `~/.ssh/config`)
 2. Pulls latest changes
 3. Builds test images: `postgres` + backend + `test-runner`
@@ -258,6 +261,7 @@ What it does / Что делает:
 6. Exits with the same code as the test-runner container
 
 Подробности — в `scripts/test-remote.sh`. Сам скрипт настраивается через переменную окружения:
+
 - `DREAM_PATH` — путь к проекту на dreamliner (default: `/home/VcR3S9/projects/Quant_tauri`)
 - `DREAM_HOST` — alias в `~/.ssh/config` (default: `dreamliner`)
 

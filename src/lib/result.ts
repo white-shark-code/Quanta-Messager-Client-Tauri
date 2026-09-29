@@ -16,7 +16,7 @@ export function isErr<T, E>(r: Result<T, E>): r is { ok: false; error: E } {
   return !r.ok;
 }
 
-export function unwrap<T, E>(r: Result<T, E>): T {
+export function unwrap<T, E extends Error>(r: Result<T, E>): T {
   if (r.ok) {
     return r.value;
   }

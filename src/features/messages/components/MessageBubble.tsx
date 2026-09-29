@@ -30,7 +30,7 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
   const { data: decrypted, isLoading: decrypting } = useDecryptedMessage(
     message.id,
     pending ? "" : message.encrypted_message,
-    pending ? "" : message.signature,
+    pending ? "" : (message.signature ?? ""),
   );
 
   const text = pending
@@ -46,7 +46,9 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
         maw="70%"
         withBorder
         style={{
-          backgroundColor: isMine ? "var(--mantine-color-blue-light)" : "var(--mantine-color-default)",
+          backgroundColor: isMine
+            ? "var(--mantine-color-blue-light)"
+            : "var(--mantine-color-default)",
         }}
       >
         <Stack gap={4}>
@@ -66,7 +68,7 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
                     variant="subtle"
                     color="red"
                     onClick={(): void => {
-                      retry(message.id);
+                      retry.retry(message.id);
                     }}
                   >
                     <IconRefresh size={12} />

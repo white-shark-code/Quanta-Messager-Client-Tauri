@@ -31,8 +31,10 @@ function makePublicKey(fingerprintHex: string = FP_HEX): openpgp.Key {
   } as unknown as openpgp.Key;
 }
 
-const PUBLIC_ARMORED = "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfake-public\n-----END PGP PUBLIC KEY BLOCK-----";
-const PRIVATE_ARMORED = "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfake-private\n-----END PGP PRIVATE KEY BLOCK-----";
+const PUBLIC_ARMORED =
+  "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfake-public\n-----END PGP PUBLIC KEY BLOCK-----";
+const PRIVATE_ARMORED =
+  "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfake-private\n-----END PGP PRIVATE KEY BLOCK-----";
 
 describe("keyring/keyringStore", () => {
   beforeEach(() => {
@@ -56,7 +58,9 @@ describe("keyring/keyringStore", () => {
 
   describe("importPublicOnly", () => {
     it("populates public key + armored string + uppercase fingerprint, leaves privateKey/passphrase null", async () => {
-      importPublicKey.mockResolvedValueOnce(makePublicKey("abcdef1234567890abcdef1234567890abcdef12"));
+      importPublicKey.mockResolvedValueOnce(
+        makePublicKey("abcdef1234567890abcdef1234567890abcdef12"),
+      );
 
       await useKeyringStore.getState().importPublicOnly(PUBLIC_ARMORED);
 
@@ -91,7 +95,9 @@ describe("keyring/keyringStore", () => {
   describe("setKeys", () => {
     it("populates publicKey, privateKey, publicKeyArmored, uppercase fingerprint, and passphrase", async () => {
       const passphrase = "correct horse battery staple";
-      importPublicKey.mockResolvedValueOnce(makePublicKey("fffefdfcbfaf00112233445566778899aabbccdd"));
+      importPublicKey.mockResolvedValueOnce(
+        makePublicKey("fffefdfcbfaf00112233445566778899aabbccdd"),
+      );
       importPrivateKey.mockResolvedValueOnce(makePrivateKey());
 
       await useKeyringStore.getState().setKeys(PUBLIC_ARMORED, PRIVATE_ARMORED, passphrase);
@@ -183,18 +189,22 @@ describe("keyring/keyringStore", () => {
 
   describe("setKeysFromPair", () => {
     it("delegates to setKeys with the pair's armored fields and the supplied passphrase", async () => {
-      const publicArmored = "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfrom-pair\n-----END PGP PUBLIC KEY BLOCK-----";
-      const privateArmored = "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfrom-pair\n-----END PGP PRIVATE KEY BLOCK-----";
+      const publicArmored =
+        "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfrom-pair\n-----END PGP PUBLIC KEY BLOCK-----";
+      const privateArmored =
+        "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfrom-pair\n-----END PGP PRIVATE KEY BLOCK-----";
       const passphrase = "pair-passphrase";
       importPublicKey.mockResolvedValueOnce(makePublicKey("001122334455"));
       importPrivateKey.mockResolvedValueOnce(makePrivateKey());
 
-      await useKeyringStore
-        .getState()
-        .setKeysFromPair(
-          { publicKeyArmored: publicArmored, privateKeyArmored: privateArmored, fingerprint: "ignored" },
-          passphrase,
-        );
+      await useKeyringStore.getState().setKeysFromPair(
+        {
+          publicKeyArmored: publicArmored,
+          privateKeyArmored: privateArmored,
+          fingerprint: "ignored",
+        },
+        passphrase,
+      );
 
       const s = useKeyringStore.getState();
       expect(s.status).toBe("ready");

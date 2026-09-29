@@ -74,9 +74,7 @@ export function UnlockAgainModal(): JSX.Element {
 
   const wantsReauth = serverPassword.length > 0;
   const canSubmit =
-    passphrase.length > 0 &&
-    (!pgpDiffers || pgpPassphrase.length > 0) &&
-    serverPassword.length > 0;
+    passphrase.length > 0 && (!pgpDiffers || pgpPassphrase.length > 0) && serverPassword.length > 0;
 
   function reset(): void {
     setPassphrase("");
@@ -106,11 +104,7 @@ export function UnlockAgainModal(): JSX.Element {
         if (uid === undefined) {
           throw new Error("unlock-again: no userId in sessionStore");
         }
-        await unlockWithPassphrase(
-          uid,
-          passphrase,
-          pgpDiffers ? pgpPassphrase : undefined,
-        );
+        await unlockWithPassphrase(uid, passphrase, pgpDiffers ? pgpPassphrase : undefined);
       }
       reset();
       close();
@@ -177,14 +171,8 @@ export function UnlockAgainModal(): JSX.Element {
 
           {error !== null && <Alert color="red">{error}</Alert>}
 
-          <Button
-            onClick={() => void handleSubmit()}
-            loading={busy}
-            disabled={!canSubmit}
-          >
-            {wantsReauth
-              ? t("auth.unlock.submitReauth")
-              : t("auth.unlock.submit")}
+          <Button onClick={() => void handleSubmit()} loading={busy} disabled={!canSubmit}>
+            {wantsReauth ? t("auth.unlock.submitReauth") : t("auth.unlock.submit")}
           </Button>
         </Stack>
       </Modal>

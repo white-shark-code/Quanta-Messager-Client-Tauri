@@ -31,13 +31,16 @@ const SETTINGS_KEYS = [
   "notificationsEnabled",
 ] as const satisfies readonly (keyof Settings)[];
 
+const viteApiUrl = (import.meta.env as { VITE_API_URL?: unknown }).VITE_API_URL;
+
 const defaults: Settings = {
   theme: "dark",
   pollingIntervalMs: 5000,
   idleTimeoutMs: 300_000,
   autoLockEnabled: true,
   language: "ru",
-  apiBaseUrl: import.meta.env.VITE_API_URL ?? "http://localhost:8000",
+  apiBaseUrl:
+    typeof viteApiUrl === "string" && viteApiUrl.length > 0 ? viteApiUrl : "http://localhost:8000",
   notificationsEnabled: true,
 };
 

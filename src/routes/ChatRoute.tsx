@@ -53,19 +53,14 @@ export function ChatRoute(): JSX.Element | null {
   // themselves. The hook's `enabled` gate handles "peer not known yet".
   const peerId = pickPeerId(chat, currentUser?.id);
   const peerKey = useUserPublicKey(peerId);
-  const peerMissingKey =
-    peerKey.data !== undefined &&
-    peerKey.data.has_public_key === false &&
-    !peerKey.isFetching;
+  const peerMissingKey = peerKey.data?.has_public_key === false && !peerKey.isFetching;
   // A 404 means the peer UUID doesn't resolve to a user — degenerate
   // case, but treat it the same as "no key" so the user gets feedback.
-  const peerLookup404 =
-    peerKey.error instanceof ApiError && peerKey.error.status === 404;
+  const peerLookup404 = peerKey.error instanceof ApiError && peerKey.error.status === 404;
   // True only while the hook hasn't produced data yet (initial mount
   // or a refetch). Once we have *any* answer — even has_public_key=false
   // — we treat the lookup as done.
-  const peerKeyLoading =
-    peerKey.data === undefined && peerKey.isFetching && !peerLookup404;
+  const peerKeyLoading = peerKey.data === undefined && peerKey.isFetching && !peerLookup404;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -121,12 +116,11 @@ export function ChatRoute(): JSX.Element | null {
   // human-readable identifier. If the chat name is missing, i18next
   // leaves `{email}` blank.
   const peerLabel = chat?.name ?? "";
-  const composerDisabledReason =
-    peerKeyLoading
-      ? t("chat.loadingPeerKey")
-      : peerMissingKey || peerLookup404
-        ? t("chat.peerNoKeyDescription", { email: peerLabel })
-        : undefined;
+  const composerDisabledReason = peerKeyLoading
+    ? t("chat.loadingPeerKey")
+    : peerMissingKey || peerLookup404
+      ? t("chat.peerNoKeyDescription", { email: peerLabel })
+      : undefined;
 
   return (
     <Stack
@@ -172,12 +166,7 @@ export function ChatRoute(): JSX.Element | null {
       )}
 
       {peerKeyLoading && (
-        <Alert
-          color="blue"
-          icon={<Loader size={16} />}
-          mx="sm"
-          title={t("chat.loadingPeerKey")}
-        >
+        <Alert color="blue" icon={<Loader size={16} />} mx="sm" title={t("chat.loadingPeerKey")}>
           {t("chat.loadingPeerKey")}
         </Alert>
       )}
@@ -186,9 +175,7 @@ export function ChatRoute(): JSX.Element | null {
         chatId={chatId}
         kind={kind}
         peerPublicKeyArmored={
-          peerKey.data?.has_public_key === true
-            ? (peerKey.data?.public_key ?? null)
-            : null
+          peerKey.data?.has_public_key === true ? (peerKey.data?.public_key ?? null) : null
         }
         {...(composerDisabledReason !== undefined
           ? { disabledReason: composerDisabledReason }

@@ -6,7 +6,7 @@ const { configureClientMock } = vi.hoisted(() => ({
 
 vi.mock("@/infra/apiClient", () => {
   return {
-    configureClient: (...args: unknown[]) => configureClientMock(...args),
+    configureClient: (...args: unknown[]): unknown => configureClientMock(...args) as unknown,
   };
 });
 

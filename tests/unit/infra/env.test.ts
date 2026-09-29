@@ -35,8 +35,6 @@ describe("infra/env — apiUrl()", () => {
 
   it("preserves a query string on the path", () => {
     const base = env.apiUrl.replace(/\/+$/, "");
-    expect(apiUrl("/v1/users?limit=10")).toBe(
-      `${base}/v1/users?limit=10`,
-    );
+    expect(apiUrl("/v1/users?limit=10")).toBe(`${base}/v1/users?limit=10`);
   });
 });

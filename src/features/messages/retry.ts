@@ -45,12 +45,7 @@ import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { toUserMessage } from "@/infra/error";
 
 import * as messagesApi from "./api";
-import {
-  bytesToBase64,
-  messagesQueryKey,
-  type ChatKind,
-  type MessagesCache,
-} from "./mutations";
+import { bytesToBase64, messagesQueryKey, type ChatKind, type MessagesCache } from "./mutations";
 import type { DialogMessage } from "./model";
 
 /**
@@ -156,21 +151,18 @@ export function useRetryMessage(): UseMutationResult<RetryResult, Error, RetryIn
       // programmatic use), so both slots carry the self-encrypted
       // pair: the backend requires both, and both stay decryptable
       // by the sender.
-      const { encrypted, signature } = await keyring.encryptText(
-        text,
-        [publicKey],
-        privateKey,
-      );
+      const { encrypted, signature } = await keyring.encryptText(text, [publicKey], privateKey);
 
-      const send: (id: string, req: {
-        encrypted_message: string;
-        signature: string;
-        encrypted_message_self: string;
-        signature_self: string;
-      }) => Promise<DialogMessage> =
-        kind === "private"
-          ? messagesApi.sendPrivateMessage
-          : messagesApi.sendGroupMessage;
+      const send: (
+        id: string,
+        req: {
+          encrypted_message: string;
+          signature: string;
+          encrypted_message_self: string;
+          signature_self: string;
+        },
+      ) => Promise<DialogMessage> =
+        kind === "private" ? messagesApi.sendPrivateMessage : messagesApi.sendGroupMessage;
 
       const server = await send(chatId, {
         encrypted_message: bytesToBase64(encrypted),

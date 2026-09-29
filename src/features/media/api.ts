@@ -1,11 +1,6 @@
 import { apiClient } from "@/infra/apiClient";
 
-import type {
-  ListItems,
-  MediaAttachment,
-  MediaDownload,
-  UploadMediaRequest,
-} from "./model";
+import type { ListItems, MediaAttachment, MediaDownload, UploadMediaRequest } from "./model";
 
 /**
  * Options for media upload.
@@ -79,12 +74,8 @@ export async function uploadGroupMedia(
  *
  * Backend route: `GET /messages/private-message/{message_id}/media/`.
  */
-export async function listPrivateMedia(
-  messageId: string,
-): Promise<ListItems<MediaAttachment>> {
-  return apiClient.get<ListItems<MediaAttachment>>(
-    `/messages/private-message/${messageId}/media/`,
-  );
+export async function listPrivateMedia(messageId: string): Promise<ListItems<MediaAttachment>> {
+  return apiClient.get<ListItems<MediaAttachment>>(`/messages/private-message/${messageId}/media/`);
 }
 
 /**
@@ -92,9 +83,7 @@ export async function listPrivateMedia(
  *
  * Backend route: `GET /group-messages/group-message/{message_id}/media/`.
  */
-export async function listGroupMedia(
-  messageId: string,
-): Promise<ListItems<MediaAttachment>> {
+export async function listGroupMedia(messageId: string): Promise<ListItems<MediaAttachment>> {
   return apiClient.get<ListItems<MediaAttachment>>(
     `/group-messages/group-message/${messageId}/media/`,
   );
@@ -109,12 +98,8 @@ export async function listGroupMedia(
  * decryption pipeline (TASK-072) is responsible for decoding them before
  * passing them to openpgp.js.
  */
-export async function downloadPrivateMedia(
-  mediaId: string,
-): Promise<MediaDownload> {
-  return apiClient.get<MediaDownload>(
-    `/messages/private-message/media/${mediaId}`,
-  );
+export async function downloadPrivateMedia(mediaId: string): Promise<MediaDownload> {
+  return apiClient.get<MediaDownload>(`/messages/private-message/media/${mediaId}`);
 }
 
 /**
@@ -124,12 +109,8 @@ export async function downloadPrivateMedia(
  *
  * Same base64 convention as {@link downloadPrivateMedia}.
  */
-export async function downloadGroupMedia(
-  mediaId: string,
-): Promise<MediaDownload> {
-  return apiClient.get<MediaDownload>(
-    `/group-messages/group-message/media/${mediaId}`,
-  );
+export async function downloadGroupMedia(mediaId: string): Promise<MediaDownload> {
+  return apiClient.get<MediaDownload>(`/group-messages/group-message/media/${mediaId}`);
 }
 
 /**
@@ -140,12 +121,8 @@ export async function downloadGroupMedia(
  * If the attachment is already linked to a message, only the link is
  * cleared on the server side; the message itself is preserved.
  */
-export async function deletePrivateMedia(
-  mediaId: string,
-): Promise<MediaAttachment> {
-  return apiClient.delete<MediaAttachment>(
-    `/messages/private-message/media/${mediaId}/`,
-  );
+export async function deletePrivateMedia(mediaId: string): Promise<MediaAttachment> {
+  return apiClient.delete<MediaAttachment>(`/messages/private-message/media/${mediaId}/`);
 }
 
 /**
@@ -153,10 +130,6 @@ export async function deletePrivateMedia(
  *
  * Backend route: `DELETE /group-messages/group-message/media/{media_id}/`.
  */
-export async function deleteGroupMedia(
-  mediaId: string,
-): Promise<MediaAttachment> {
-  return apiClient.delete<MediaAttachment>(
-    `/group-messages/group-message/media/${mediaId}/`,
-  );
+export async function deleteGroupMedia(mediaId: string): Promise<MediaAttachment> {
+  return apiClient.delete<MediaAttachment>(`/group-messages/group-message/media/${mediaId}/`);
 }

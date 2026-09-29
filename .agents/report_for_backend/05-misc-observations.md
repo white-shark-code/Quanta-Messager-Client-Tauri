@@ -65,6 +65,7 @@ Docstring модуля продублирован дважды подряд (с�
 ## 4. Нет CORS / preflight для WebSocket (если будете добавлять)
 
 Если в будущем добавите WebSocket-эндпоинт (для real-time вместо polling), учтите:
+
 - `CORSMiddleware` обрабатывает только HTTP — для WS нужен отдельный `WSMiddleware`
   или передача заголовков origin вручную.
 - Tauri-WebView на Android имеет лимит на одновременные WS-соединения.

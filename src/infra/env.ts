@@ -4,7 +4,7 @@ export interface AppEnv {
   isProd: boolean;
 }
 
-const rawApiUrl = import.meta.env.VITE_API_URL;
+const rawApiUrl = (import.meta.env as { VITE_API_URL?: unknown }).VITE_API_URL;
 
 if (typeof rawApiUrl !== "string" || rawApiUrl.length === 0) {
   throw new Error(

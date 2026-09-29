@@ -8,40 +8,41 @@ const fsState = vi.hoisted(() => {
 vi.mock("@tauri-apps/plugin-fs", () => {
   const BaseDirectory = { AppData: 0 };
 
-  const readFile = vi.fn(async (path: string | URL): Promise<Uint8Array<ArrayBuffer>> => {
+  const readFile = vi.fn((path: string | URL): Promise<Uint8Array<ArrayBuffer>> => {
     const key = typeof path === "string" ? path : path.toString();
     const buf = fsState.files.get(key);
     if (!buf) {
-      throw new Error(`File not found: ${key}`);
+      return Promise.reject(new Error(`File not found: ${key}`));
     }
-    return new Uint8Array(buf);
+    return Promise.resolve(new Uint8Array(buf));
   });
 
   const writeFile = vi.fn(
-    async (path: string | URL, data: Uint8Array | ReadableStream<Uint8Array>): Promise<void> => {
+    (path: string | URL, data: Uint8Array | ReadableStream<Uint8Array>): Promise<void> => {
       const key = typeof path === "string" ? path : path.toString();
       if (data instanceof Uint8Array) {
         fsState.files.set(key, new Uint8Array(data));
-      } else {
-        throw new Error("ReadableStream is not supported by the in-memory mock");
+        return Promise.resolve();
       }
+      return Promise.reject(new Error("ReadableStream is not supported by the in-memory mock"));
     },
   );
 
-  const exists = vi.fn(async (path: string | URL): Promise<boolean> => {
+  const exists = vi.fn((path: string | URL): Promise<boolean> => {
     const key = typeof path === "string" ? path : path.toString();
-    return fsState.files.has(key);
+    return Promise.resolve(fsState.files.has(key));
   });
 
-  const remove = vi.fn(async (path: string | URL): Promise<void> => {
+  const remove = vi.fn((path: string | URL): Promise<void> => {
     const key = typeof path === "string" ? path : path.toString();
     fsState.files.delete(key);
+    return Promise.resolve();
   });
 
   // Production code calls mkdir before the first writeFile to ensure
   // the keystores/ directory exists on a clean device. The mock just
   // resolves — the in-memory Map doesn't need directories.
-  const mkdir = vi.fn(async (_path: string | URL): Promise<void> => undefined);
+  const mkdir = vi.fn((): Promise<void> => Promise.resolve());
 
   return {
     BaseDirectory,
@@ -59,11 +60,15 @@ vi.mock("@tauri-apps/api/path", () => ({
   // appDataDir() and a join() that strips the first arg so the resulting
   // absolute key still resolves to the in-memory map entry written by
   // the writeFile mock (which stores under the relative path).
-  appDataDir: vi.fn(async (): Promise<string> => "/mock-appdata"),
-  join: vi.fn(async (_base: string, ...rest: string[]): Promise<string> => rest.join("/")),
+  appDataDir: vi.fn((): Promise<string> => Promise.resolve("/mock-appdata")),
+  join: vi.fn((...args: string[]): Promise<string> => Promise.resolve(args.slice(1).join("/"))),
 }));
 
-import { readFile as mockedReadFile, writeFile as mockedWriteFile, exists as mockedExists } from "@tauri-apps/plugin-fs";
+import {
+  readFile as mockedReadFile,
+  writeFile as mockedWriteFile,
+  exists as mockedExists,
+} from "@tauri-apps/plugin-fs";
 import {
   deleteKeystore,
   readKeystore,
@@ -83,14 +88,14 @@ vi.mock("@/features/secure-store/kdf", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/secure-store/kdf")>();
   return {
     ...actual,
-    deriveKey: vi.fn(async (passphrase: string, params: { salt: Uint8Array }): Promise<Uint8Array> => {
+    deriveKey: vi.fn((passphrase: string, params: { salt: Uint8Array }): Promise<Uint8Array> => {
       const salt = params.salt;
       const key = new Uint8Array(32);
       const len = Math.max(passphrase.length, 1);
       for (let i = 0; i < 32; i++) {
         key[i] = ((passphrase.charCodeAt(i % len) ?? 0) ^ (salt[i % salt.length] ?? 0)) & 0xff;
       }
-      return key;
+      return Promise.resolve(key);
     }),
     DEFAULT_KDF_PARAMS: {
       ...actual.DEFAULT_KDF_PARAMS,
@@ -106,8 +111,10 @@ const SAMPLE_PAYLOAD_A: KeystorePayload = {
   version: 1,
   user: { id: USER_A, email: "alice@example.com" },
   accessToken: "tok-aaa",
-  privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeA\n-----END PGP PRIVATE KEY BLOCK-----",
-  publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeA\n-----END PGP PUBLIC KEY BLOCK-----",
+  privateKeyArmored:
+    "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeA\n-----END PGP PRIVATE KEY BLOCK-----",
+  publicKeyArmored:
+    "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeA\n-----END PGP PUBLIC KEY BLOCK-----",
   fingerprint: "FINGERPRINT_A",
   dialogKey: "AAECAwQFBgcICQoLDA0ODw==",
 };
@@ -116,8 +123,10 @@ const SAMPLE_PAYLOAD_B: KeystorePayload = {
   version: 1,
   user: { id: USER_B, email: "bob@example.com" },
   accessToken: "tok-bbb",
-  privateKeyArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeB\n-----END PGP PRIVATE KEY BLOCK-----",
-  publicKeyArmored: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeB\n-----END PGP PUBLIC KEY BLOCK-----",
+  privateKeyArmored:
+    "-----BEGIN PGP PRIVATE KEY BLOCK-----\nfakeB\n-----END PGP PRIVATE KEY BLOCK-----",
+  publicKeyArmored:
+    "-----BEGIN PGP PUBLIC KEY BLOCK-----\nfakeB\n-----END PGP PUBLIC KEY BLOCK-----",
   fingerprint: "FINGERPRINT_B",
   dialogKey: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxw=",
 };
@@ -189,7 +198,10 @@ describe("store (writeKeystore / readKeystore)", () => {
   });
 
   it("readKeystore throws when the file exists but is truncated / corrupted", async () => {
-    fsState.files.set(getKeystorePath(USER_A), new Uint8Array([0x51, 0x4b, 0x53, 0x31, 0x01, 0x00]));
+    fsState.files.set(
+      getKeystorePath(USER_A),
+      new Uint8Array([0x51, 0x4b, 0x53, 0x31, 0x01, 0x00]),
+    );
 
     await expect(readKeystore(USER_A, "anything")).rejects.toThrow();
   });

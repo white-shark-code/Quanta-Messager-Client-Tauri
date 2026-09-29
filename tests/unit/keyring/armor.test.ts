@@ -1,9 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  isValidArmoredPrivateKey,
-  isValidArmoredPublicKey,
-} from "@/features/keyring/armor";
+import { isValidArmoredPrivateKey, isValidArmoredPublicKey } from "@/features/keyring/armor";
 import { generateKeyPair } from "@/features/keyring/encrypt";
 import type { KeyPair } from "@/features/keyring/types";
 
@@ -57,9 +54,9 @@ describe("keyring/armor", () => {
     });
 
     it("returns false with a wrong passphrase", async () => {
-      expect(
-        await isValidArmoredPrivateKey(pair.privateKeyArmored, "definitely-wrong"),
-      ).toBe(false);
+      expect(await isValidArmoredPrivateKey(pair.privateKeyArmored, "definitely-wrong")).toBe(
+        false,
+      );
     });
 
     it("returns false for a garbage string", async () => {

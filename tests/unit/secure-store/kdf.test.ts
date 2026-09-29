@@ -19,8 +19,14 @@ const FAST_PARAMS = {
 
 describe("kdf (Argon2id)", () => {
   it("derives the same key for the same passphrase + same salt", async () => {
-    const k1 = await deriveKey("correct horse battery staple", { ...FAST_PARAMS, salt: fixedSalt(42) });
-    const k2 = await deriveKey("correct horse battery staple", { ...FAST_PARAMS, salt: fixedSalt(42) });
+    const k1 = await deriveKey("correct horse battery staple", {
+      ...FAST_PARAMS,
+      salt: fixedSalt(42),
+    });
+    const k2 = await deriveKey("correct horse battery staple", {
+      ...FAST_PARAMS,
+      salt: fixedSalt(42),
+    });
 
     expect(k1).toEqual(k2);
   });

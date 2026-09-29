@@ -41,26 +41,26 @@ E2E-encrypted мессенджер с архитектурой **zero-knowledge*
 
 ## 2. Технологический стек
 
-| Слой | Технология | Версия | Обоснование |
-|---|---|---|---|
-| Runtime | **Tauri** | 2.x | Нативная производительность, малый размер бандла, официальная поддержка Android |
-| Язык | **TypeScript** | 5.x, `strict: true` | Безопасность рефакторинга, типизированный API-клиент |
-| UI-framework | **React** | 18.x | Экосистема, hiring-friendly |
-| Сборка | **Vite** | 5.x | Быстрый dev-server, native-ESM |
-| UI-кит | **Mantine** | 7.x | 100+ компонентов, формы, нотификации, hooks из коробки |
-| Иконки | **@tabler/icons-react** | 3.x | Стандартные в паре с Mantine |
-| Дата/время | **dayjs** | 1.x | Маленький, локализация из коробки |
-| Server-state | **@tanstack/react-query** | 5.x | Кеш, retry, polling, мутации, optimistic updates |
-| Client-state | **Zustand** | 4.x | Минимальный, без boilerplate, легко тестировать |
-| Роутинг | **react-router-dom** | 6.x | Data-router API, loaders/actions |
-| i18n | **react-i18next** | 14.x | RU + EN словари, переключение в runtime |
-| PGP | **openpgp.js** | 6.x | Чистый JS+WASM, не требует GPG на машине, Curve25519/RSA, WebCrypto |
-| KDF | **argon2-browser / hash-wasm** | latest | Argon2id для keystore |
-| Cipher | **WebCrypto API** | built-in | ChaCha20-Poly1305 не в WebCrypto → используем **@stablelib/chacha20poly1305** (~10 KB) |
-| Tauri-plugins | см. §7 | 2.x | FS, dialog, notification, deep-link, http |
-| Линт/формат | **ESLint** + **Prettier** | flat-config | Единый стиль, pre-commit |
-| Тесты | **Vitest** + **Playwright** | latest | Unit/integration/e2e |
-| Прекоммит | **lefthook** или **husky** | latest | Запуск lint+typecheck перед коммитом |
+| Слой          | Технология                     | Версия              | Обоснование                                                                            |
+| ------------- | ------------------------------ | ------------------- | -------------------------------------------------------------------------------------- |
+| Runtime       | **Tauri**                      | 2.x                 | Нативная производительность, малый размер бандла, официальная поддержка Android        |
+| Язык          | **TypeScript**                 | 5.x, `strict: true` | Безопасность рефакторинга, типизированный API-клиент                                   |
+| UI-framework  | **React**                      | 18.x                | Экосистема, hiring-friendly                                                            |
+| Сборка        | **Vite**                       | 5.x                 | Быстрый dev-server, native-ESM                                                         |
+| UI-кит        | **Mantine**                    | 7.x                 | 100+ компонентов, формы, нотификации, hooks из коробки                                 |
+| Иконки        | **@tabler/icons-react**        | 3.x                 | Стандартные в паре с Mantine                                                           |
+| Дата/время    | **dayjs**                      | 1.x                 | Маленький, локализация из коробки                                                      |
+| Server-state  | **@tanstack/react-query**      | 5.x                 | Кеш, retry, polling, мутации, optimistic updates                                       |
+| Client-state  | **Zustand**                    | 4.x                 | Минимальный, без boilerplate, легко тестировать                                        |
+| Роутинг       | **react-router-dom**           | 6.x                 | Data-router API, loaders/actions                                                       |
+| i18n          | **react-i18next**              | 14.x                | RU + EN словари, переключение в runtime                                                |
+| PGP           | **openpgp.js**                 | 6.x                 | Чистый JS+WASM, не требует GPG на машине, Curve25519/RSA, WebCrypto                    |
+| KDF           | **argon2-browser / hash-wasm** | latest              | Argon2id для keystore                                                                  |
+| Cipher        | **WebCrypto API**              | built-in            | ChaCha20-Poly1305 не в WebCrypto → используем **@stablelib/chacha20poly1305** (~10 KB) |
+| Tauri-plugins | см. §7                         | 2.x                 | FS, dialog, notification, deep-link, http                                              |
+| Линт/формат   | **ESLint** + **Prettier**      | flat-config         | Единый стиль, pre-commit                                                               |
+| Тесты         | **Vitest** + **Playwright**    | latest              | Unit/integration/e2e                                                                   |
+| Прекоммит     | **lefthook** или **husky**     | latest              | Запуск lint+typecheck перед коммитом                                                   |
 
 ### 2.1. Что **не** используем
 
@@ -118,6 +118,7 @@ E2E-encrypted мессенджер с архитектурой **zero-knowledge*
 ```
 
 **Принципы:**
+
 - Feature-first структура (не layer-first)
 - Каждый feature изолирован: `api.ts`, `queries.ts`/`mutations.ts`, `components/`
 - PGP, secure-store, apiClient — singleton-сервисы с явной инициализацией
@@ -228,15 +229,15 @@ Quant_tauri/
 export async function init(): Promise<void>;
 
 export interface KeyPair {
-  privateKeyArmored: string;   // ASCII-armored, зашифрован паролем
+  privateKeyArmored: string; // ASCII-armored, зашифрован паролем
   publicKeyArmored: string;
-  fingerprint: string;         // 40-hex, uppercase
+  fingerprint: string; // 40-hex, uppercase
 }
 
 export async function generate(
   userInfo: { name: string; email: string },
   passphrase: string,
-  type?: 'ecc' | 'rsa'
+  type?: "ecc" | "rsa",
 ): Promise<KeyPair>;
 
 export async function importPublicKey(armored: string): Promise<PublicKey>;
@@ -246,28 +247,28 @@ export async function importPrivateKey(armored: string, passphrase: string): Pro
 export async function encryptText(
   text: string,
   recipientsPublicKeys: PublicKey[],
-  signingKey: PrivateKey
+  signingKey: PrivateKey,
 ): Promise<{ encrypted: Uint8Array; signature: Uint8Array }>;
 
 export async function decryptText(
   encrypted: Uint8Array,
   signature: Uint8Array,
   sendersPublicKey: PublicKey,
-  decryptionKey: PrivateKey
+  decryptionKey: PrivateKey,
 ): Promise<{ text: string; verified: boolean }>;
 
 // для медиа (detached signature)
 export async function encryptFile(
   fileBytes: Uint8Array,
   recipientsPublicKeys: PublicKey[],
-  signingKey: PrivateKey
+  signingKey: PrivateKey,
 ): Promise<{ encrypted: Uint8Array; signature: Uint8Array; mime: string }>;
 
 export async function decryptFile(
   encrypted: Uint8Array,
   signature: Uint8Array,
   sendersPublicKey: PublicKey,
-  decryptionKey: PrivateKey
+  decryptionKey: PrivateKey,
 ): Promise<Uint8Array>;
 
 export async function fingerprintOf(publicKeyArmored: string): Promise<string>;
@@ -290,6 +291,7 @@ export async function fingerprintOf(publicKeyArmored: string): Promise<string>;
 #### 5.2.2. KDF
 
 **Argon2id** (memory-hard, OWASP рекомендация). Параметры:
+
 - `m = 64 MiB`, `t = 3`, `p = 1`
 - 32-байтный выход → ключ ChaCha20
 
@@ -344,6 +346,7 @@ export async function fingerprintOf(publicKeyArmored: string): Promise<string>;
 > Шифрованный кеш истории сообщений на диске — чтобы чаты открывались мгновенно при старте и переживали рестарт без полной перекачки с сервера.
 
 **Раскладка под `<app_data_dir>`**:
+
 ```
 dialogs/
   <userId>/
@@ -354,6 +357,7 @@ dialogs/
 **Ключ шифрования** — случайный 32-байтный блоб, генерируется один раз при создании keystore и кладётся в `KeystorePayload.dialogKey` (base64). В памяти живёт только в `keyringStore.dialogKeyB64` между unlock и lock. Без него `.qdlog` файлы не расшифровываются.
 
 **Формат файла `<chatId>.qdlog`** (`QDLG1`, см. `secure-store/format.ts`):
+
 ```
 ┌────────┬────────┬────────────┬───────────────────┐
 │ magic  │ version│ chacha_nonce│ ciphertext+tag   │
@@ -365,6 +369,7 @@ dialogs/
 Plaintext внутри — JSON-сериализованный `DialogMessage[]`. Append-only: перед записью делается dedupe по `id` и сортировка по `creation_datetime`.
 
 **Точки записи**:
+
 - `useSendPrivateMessage` / `useSendGroupMessage` → `onSuccess` (после `replacePending`) → `appendDialog`
 - `usePrivateMessages` / `useGroupMessages` → `useEffect` на смену данных → `appendManyDialog` (через ref для идемпотентности)
 
@@ -391,14 +396,27 @@ Plaintext внутри — JSON-сериализованный `DialogMessage[]`
 ```ts
 // infra/apiClient.ts — скелет
 export class ApiError extends Error {
-  constructor(public status: number, public detail: string) { super(detail); }
+  constructor(
+    public status: number,
+    public detail: string,
+  ) {
+    super(detail);
+  }
 }
 
 export const apiClient = {
-  async get<T>(path: string, init?: RequestInit): Promise<T> { /* ... */ },
-  async post<T>(path: string, body: unknown): Promise<T> { /* ... */ },
-  async postMultipart<T>(path: string, form: FormData): Promise<T> { /* ... */ },
-  async delete<T>(path: string): Promise<T> { /* ... */ },
+  async get<T>(path: string, init?: RequestInit): Promise<T> {
+    /* ... */
+  },
+  async post<T>(path: string, body: unknown): Promise<T> {
+    /* ... */
+  },
+  async postMultipart<T>(path: string, form: FormData): Promise<T> {
+    /* ... */
+  },
+  async delete<T>(path: string): Promise<T> {
+    /* ... */
+  },
 };
 ```
 
@@ -408,14 +426,15 @@ export const apiClient = {
 
 ### 6.1. Server state — TanStack Query (v5)
 
-| Query key | Stale time | Refetch |
-|---|---|---|
-| `['me']` | `Infinity` | по фокусу приложения |
-| `['chats']` | 30 s | ручной refresh + при новых events |
-| `['messages', chatId, cursor]` | 0 s | polling при открытом чате |
-| `['events']` | 0 s | 5 s polling |
+| Query key                      | Stale time | Refetch                           |
+| ------------------------------ | ---------- | --------------------------------- |
+| `['me']`                       | `Infinity` | по фокусу приложения              |
+| `['chats']`                    | 30 s       | ручной refresh + при новых events |
+| `['messages', chatId, cursor]` | 0 s        | polling при открытом чате         |
+| `['events']`                   | 0 s        | 5 s polling                       |
 
 **Особенности:**
+
 - Optimistic updates для `sendMessage` (статус `pending → sent → failed`).
 - Retry-кнопка на failed-сообщениях.
 - Infinite scroll для истории сообщений (cursor-based).
@@ -483,6 +502,7 @@ env_logger = "0.11"
 ```
 
 **Кастомных Rust-команд минимум** (`src-tauri/src/commands/`):
+
 - `get_app_data_dir() -> PathBuf` — обёртка над `path::app_data_dir()` (Android: `getFilesDir()`).
 - `lock_screen_now()` — отправляет событие в WebView для стирания ключей.
 - `log_frontend_error(level, message)` — единый мост в логи.
@@ -492,6 +512,7 @@ env_logger = "0.11"
 ### 8.2. Capabilities (`src-tauri/capabilities/default.json`)
 
 Разрешаем только:
+
 - `core:default`
 - `dialog:allow-open`, `dialog:allow-save`
 - `fs:allow-read-file`, `fs:allow-write-file` (только в `$APPDATA/**`)
@@ -536,16 +557,16 @@ env_logger = "0.11"
 
 ### 9.2. Экраны (роуты)
 
-| Path | Экран | Доступ |
-|---|---|---|
-| `/login` | Email + пароль, кнопка unlock если есть keystore | Гость |
-| `/register` | Регистрация + согласие на хранение ключа | Гость |
-| `/setup-key` | Генерация / импорт PGP, экспорт keystore | После register |
-| `/chats` | Список диалогов и групп, поиск | Авторизован |
-| `/chats/new` | Создать диалог (ввод UUID собеседника) | Авторизован |
-| `/chats/new-group` | Создать группу (имя + список UUID) | Авторизован |
-| `/chats/:chatId` | Сообщения, медиа, ввод | Авторизован |
-| `/settings` | Профиль, ключи, тема, idle-timeout, логаут | Авторизован |
+| Path               | Экран                                            | Доступ         |
+| ------------------ | ------------------------------------------------ | -------------- |
+| `/login`           | Email + пароль, кнопка unlock если есть keystore | Гость          |
+| `/register`        | Регистрация + согласие на хранение ключа         | Гость          |
+| `/setup-key`       | Генерация / импорт PGP, экспорт keystore         | После register |
+| `/chats`           | Список диалогов и групп, поиск                   | Авторизован    |
+| `/chats/new`       | Создать диалог (ввод UUID собеседника)           | Авторизован    |
+| `/chats/new-group` | Создать группу (имя + список UUID)               | Авторизован    |
+| `/chats/:chatId`   | Сообщения, медиа, ввод                           | Авторизован    |
+| `/settings`        | Профиль, ключи, тема, idle-timeout, логаут       | Авторизован    |
 
 **Auth guard** на уровне `<RequireAuth>` wrapper: если `!sessionStore.isUnlocked` → редирект на `/login`.
 
@@ -571,18 +592,18 @@ env_logger = "0.11"
 
 ## 10. Безопасность (чеклист)
 
-| Угроза | Защита |
-|---|---|
-| XSS в имени чата/сообщениях | Mantine экранирует; CSP без `unsafe-inline` для скриптов; React по умолчанию |
-| Утечка plaintext в логах | `log_frontend_error` через Tauri; фильтрация в Rust по `sensitive` тегу |
-| Подмена публичного ключа | TOFU + показ fingerprint в профиле собеседника + опциональная out-of-band верификация (QR-код, отдельная фича v2) |
-| Потеря keystore | Экспорт зашифрованного keystore при регистрации; восстановление через пароль |
-| Memory dump | Расшифрованные ключи — только в `Uint8Array`; зануление через `openpgp.clearPrivateParams()` при lock |
-| Network MITM | HTTPS only; HSTS в production |
-| Android backup | `android:allowBackup="false"` в `AndroidManifest.xml` |
-| Token theft | Bearer в keystore (`ChaCha20-Poly1305`), не в `localStorage` |
-| Replay-атака на polling | Бекенд выдаёт counter, фронт просто сравнивает; защита — подпись сообщения |
-| Фишинг при импорте ключа | Показ fingerprint + длина/тип ключа перед сохранением |
+| Угроза                      | Защита                                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| XSS в имени чата/сообщениях | Mantine экранирует; CSP без `unsafe-inline` для скриптов; React по умолчанию                                      |
+| Утечка plaintext в логах    | `log_frontend_error` через Tauri; фильтрация в Rust по `sensitive` тегу                                           |
+| Подмена публичного ключа    | TOFU + показ fingerprint в профиле собеседника + опциональная out-of-band верификация (QR-код, отдельная фича v2) |
+| Потеря keystore             | Экспорт зашифрованного keystore при регистрации; восстановление через пароль                                      |
+| Memory dump                 | Расшифрованные ключи — только в `Uint8Array`; зануление через `openpgp.clearPrivateParams()` при lock             |
+| Network MITM                | HTTPS only; HSTS в production                                                                                     |
+| Android backup              | `android:allowBackup="false"` в `AndroidManifest.xml`                                                             |
+| Token theft                 | Bearer в keystore (`ChaCha20-Poly1305`), не в `localStorage`                                                      |
+| Replay-атака на polling     | Бекенд выдаёт counter, фронт просто сравнивает; защита — подпись сообщения                                        |
+| Фишинг при импорте ключа    | Показ fingerprint + длина/тип ключа перед сохранением                                                             |
 
 ---
 
@@ -616,13 +637,13 @@ env_logger = "0.11"
 
 ### 11.3. Тесты
 
-| Уровень | Что покрываем |
-|---|---|
-| Unit | cryptoService (encrypt/decrypt round-trip), keystore (kdf+cipher), apiClient (моки MSW), reducers Zustand |
+| Уровень     | Что покрываем                                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| Unit        | cryptoService (encrypt/decrypt round-trip), keystore (kdf+cipher), apiClient (моки MSW), reducers Zustand            |
 | Integration | docker-compose с бекендом: register → setup key → create chat → send encrypted message → logout → re-login → decrypt |
-| E2E | Playwright на desktop-build: критические user-flows |
-| Mobile | На каждый PR — smoke `tauri android build` (только компиляция) |
-| Security | Статический анализ через `eslint-plugin-security` + ручной pentest перед релизом |
+| E2E         | Playwright на desktop-build: критические user-flows                                                                  |
+| Mobile      | На каждый PR — smoke `tauri android build` (только компиляция)                                                       |
+| Security    | Статический анализ через `eslint-plugin-security` + ручной pentest перед релизом                                     |
 
 ---
 
@@ -631,52 +652,61 @@ env_logger = "0.11"
 > Каждый этап = отдельный PR. После каждого этапа — рабочий билд.
 
 ### Этап 1. Bootstrap (≈ 2 дня)
+
 - Tauri v2 + Vite + React + TS strict
 - Mantine + тема (dark/light)
 - ESLint/Prettier/lefthook
 - Health-check роут `/`
 
 ### Этап 2. Secure-store + keyring (≈ 3 дня)
+
 - Argon2id + ChaCha20-Poly1305
 - Формат `keystore.qks`
 - Генерация / импорт PGP (UI ещё простой)
 - Unit-тесты cryptoService
 
 ### Этап 3. Auth flow (≈ 2 дня)
+
 - Login / Register / Logout
 - Сохранение токена в keystore
 - `/users/me` (current user)
 - Экран повторного unlock при 401
 
 ### Этап 4. Chats list (≈ 2 дня)
+
 - `/private-chats/`, `/group-chats/` (через дополнительные эндпоинты — TODO бекенд)
 - Создание диалога (ввод UUID собеседника)
 - Создание группы (имя + список UUID)
 
 ### Этап 5. Messages (text) (≈ 3 дня)
+
 - Список сообщений + пагинация
 - Send encrypted → optimistic → reconcile
 - Decrypt в `<MessageBubble>` с verified-бэйджем
 - Retry failed-сообщений
 
 ### Этап 6. Events polling (≈ 2 дня)
+
 - `useEventsPolling` hook
 - UnreadBadge в списке чатов
 - mark-as-read при открытии
 - Pause на hidden/background
 
 ### Этап 7. Media (≈ 3 дня)
+
 - Выбор файла → encrypt+sign → upload → link → отправка
 - Скачивание по клику с ленивой расшифровкой
 - Параллельная загрузка с прогрессом
 
 ### Этап 8. Settings + Lock screen (≈ 2 дня)
+
 - Профиль, смена публичного ключа
 - Idle timeout → lock
 - Theme/language pickers
 - Экспорт keystore
 
 ### Этап 9. Mobile polish (≈ 3 дня)
+
 - `tauri android build`
 - Notification channel
 - Deep-link `quant://chat/{id}`
@@ -684,12 +714,14 @@ env_logger = "0.11"
 - Pull-to-refresh, drag-drop fallback
 
 ### Этап 10. Hardening (≈ 2 дня)
+
 - CSP-проверка (отчёт из Tauri)
 - Security audit чеклиста §10
 - Performance: виртуализация списка сообщений (`@tanstack/react-virtual`)
 - Bundle size анализ (`vite-bundle-visualizer`)
 
 ### Этап 11. Docs & Release (≈ 1 день)
+
 - README (build, dev, security model)
 - CHANGELOG
 - Релиз v0.1.0 (alpha) на GitHub Releases + Android internal track
@@ -712,6 +744,6 @@ env_logger = "0.11"
 
 ## 14. История изменений
 
-| Версия | Дата | Изменения |
-|---|---|---|
-| 0.1 | 2026-09-08 | Первый драфт, MVP-план |
+| Версия | Дата       | Изменения              |
+| ------ | ---------- | ---------------------- |
+| 0.1    | 2026-09-08 | Первый драфт, MVP-план |

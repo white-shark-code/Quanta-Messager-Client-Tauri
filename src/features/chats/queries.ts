@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useNavigate } from "react-router-dom";
 
 import * as chatsApi from "./api";
+import type { GroupChat } from "./model";
 import { toUserMessage } from "@/infra/error";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 
@@ -13,7 +14,7 @@ const DEFAULT_PAGE_SIZE = 50;
  * `last_id` from the previous page is passed as the next `pageParam`.
  * When `last_id` is null, there are no more pages.
  */
-function lastIdOf<T>(page: { last_id: string | null } | undefined): string | null {
+function lastIdOf(page: { last_id: string | null } | undefined): string | null {
   return page?.last_id ?? null;
 }
 
@@ -22,10 +23,11 @@ export function usePrivateChats() {
     queryKey: ["chats", "private"],
     queryFn: ({ pageParam }) =>
       chatsApi
-        .getAllPrivateChats({
-          last_id: pageParam ?? undefined,
-          page_size: DEFAULT_PAGE_SIZE,
-        })
+        .getAllPrivateChats(
+          pageParam == null
+            ? { page_size: DEFAULT_PAGE_SIZE }
+            : { last_id: pageParam, page_size: DEFAULT_PAGE_SIZE },
+        )
         .then((r) => r),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastIdOf(lastPage),
@@ -69,10 +71,11 @@ export function useGroupChats() {
     queryKey: ["chats", "group"],
     queryFn: ({ pageParam }) =>
       chatsApi
-        .getAllGroupChats({
-          last_id: pageParam ?? undefined,
-          page_size: DEFAULT_PAGE_SIZE,
-        })
+        .getAllGroupChats(
+          pageParam == null
+            ? { page_size: DEFAULT_PAGE_SIZE }
+            : { last_id: pageParam, page_size: DEFAULT_PAGE_SIZE },
+        )
         .then((r) => r),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastIdOf(lastPage),
@@ -89,7 +92,7 @@ export function useCreateGroupChat() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   return useMutation({
-    mutationFn: async (req: { name: string }): Promise<chatsApi.GroupChat> => {
+    mutationFn: async (req: { name: string }): Promise<GroupChat> => {
       const publicKeyArmored = useKeyringStore.getState().publicKeyArmored;
       if (publicKeyArmored === null) {
         throw new Error("Public key not set — go to /setup-key first");

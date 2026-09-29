@@ -89,6 +89,8 @@ describe("format (keystore.qks binary layout)", () => {
   });
 
   it("serialize rejects kdfSalt whose length is not exactly 16 bytes", async () => {
-    await expect(serialize(SAMPLE_PAYLOAD, FIXED_KEY, new Uint8Array(8))).rejects.toThrow(/16 bytes/);
+    await expect(serialize(SAMPLE_PAYLOAD, FIXED_KEY, new Uint8Array(8))).rejects.toThrow(
+      /16 bytes/,
+    );
   });
 });

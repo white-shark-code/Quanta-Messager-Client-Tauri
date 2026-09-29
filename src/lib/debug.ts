@@ -67,8 +67,7 @@ export function formatDebugEntry(
   const ts = new Date().toISOString();
   const errInfo: Record<string, unknown> = {
     type: typeof err,
-    constructor:
-      (err as { constructor?: { name?: string } })?.constructor?.name ?? "unknown",
+    constructor: (err as { constructor?: { name?: string } })?.constructor?.name ?? "unknown",
     value: safeStringify(err),
     stack: err instanceof Error ? err.stack : undefined,
   };
@@ -99,11 +98,7 @@ async function readAppDebugLog(): Promise<string> {
 
 /** Write the entire debug.log content to app data dir. */
 async function writeAppDebugLog(content: string): Promise<void> {
-  await writeFile(
-    DEBUG_LOG_FILENAME,
-    encoder.encode(content),
-    { baseDir: BaseDirectory.AppData },
-  );
+  await writeFile(DEBUG_LOG_FILENAME, encoder.encode(content), { baseDir: BaseDirectory.AppData });
 }
 
 /** Append a debug entry. Always-on; the cost of writing is negligible. */
@@ -117,10 +112,7 @@ export async function debugLog(
     try {
       const existing = await readAppDebugLog();
       const merged =
-        existing +
-        (existing.length > 0 && !existing.endsWith("\n") ? "\n" : "") +
-        entry +
-        "\n";
+        existing + (existing.length > 0 && !existing.endsWith("\n") ? "\n" : "") + entry + "\n";
       const lines = merged.split("\n");
       const trimmed = lines.slice(-MAX_FILE_LINES).join("\n");
       await writeAppDebugLog(trimmed);

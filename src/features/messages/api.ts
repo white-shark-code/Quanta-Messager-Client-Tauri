@@ -1,9 +1,5 @@
 import { apiClient } from "@/infra/apiClient";
-import type {
-  CreateMessageRequest,
-  DialogMessage,
-  ListItems,
-} from "./model";
+import type { CreateMessageRequest, DialogMessage, ListItems } from "./model";
 
 /**
  * Pagination params for message list endpoints.
@@ -58,10 +54,7 @@ export async function sendPrivateMessage(
   chatId: string,
   req: CreateMessageRequest,
 ): Promise<DialogMessage> {
-  return apiClient.post<DialogMessage>(
-    `/messages/private-message/${chatId}`,
-    req,
-  );
+  return apiClient.post<DialogMessage>(`/messages/private-message/${chatId}`, req);
 }
 
 /**
@@ -93,8 +86,5 @@ export async function sendGroupMessage(
   chatId: string,
   req: CreateMessageRequest,
 ): Promise<DialogMessage> {
-  return apiClient.post<DialogMessage>(
-    `/group-messages/group-message/${chatId}`,
-    req,
-  );
+  return apiClient.post<DialogMessage>(`/group-messages/group-message/${chatId}`, req);
 }

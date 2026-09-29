@@ -42,16 +42,14 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import {
-  IconCheck,
-  IconCopy,
-  IconDownload,
-  IconEye,
-  IconShieldLock,
-} from "@tabler/icons-react";
+import { IconCheck, IconCopy, IconDownload, IconEye, IconShieldLock } from "@tabler/icons-react";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
-import { generateAndStoreKey, importAndStoreKey, exportKeystoreToFile } from "@/features/keyring/generate";
+import {
+  generateAndStoreKey,
+  importAndStoreKey,
+  exportKeystoreToFile,
+} from "@/features/keyring/generate";
 import type { KeyAlgorithm } from "@/features/keyring/types";
 import { changePublicKey } from "@/features/auth/api";
 import { readKeystore } from "@/features/secure-store/store";
@@ -62,8 +60,7 @@ import { debugLog, getDebugLogLocation } from "@/lib/debug";
 function formatDebugForDisplay(err: unknown): string {
   const info = {
     type: typeof err,
-    constructor:
-      (err as { constructor?: { name?: string } })?.constructor?.name ?? "?",
+    constructor: (err as { constructor?: { name?: string } })?.constructor?.name ?? "?",
     value: safeStr(err),
     stack: err instanceof Error ? err.stack : undefined,
   };
@@ -140,7 +137,14 @@ export function SetupKeyRoute(): JSX.Element {
       setProgress(100);
       navigate("/chats", { replace: true });
     } catch (e) {
-      console.error("[Generate] error:", e, "type:", typeof e, "constructor:", (e as { constructor?: { name?: string } })?.constructor?.name);
+      console.error(
+        "[Generate] error:",
+        e,
+        "type:",
+        typeof e,
+        "constructor:",
+        (e as { constructor?: { name?: string } })?.constructor?.name,
+      );
       void debugLog("Generate", e, { algorithm, hasUser: user !== null });
       setRawError(e);
       setDebugDetails(formatDebugForDisplay(e));
@@ -186,8 +190,12 @@ export function SetupKeyRoute(): JSX.Element {
     setRawError(null);
     setDebugDetails("");
     setSuccess(null);
+    if (user === null) {
+      setError(t("setupKey.errors.noUser"));
+      return;
+    }
     try {
-      const path = await exportKeystoreToFile(passphrase);
+      const path = await exportKeystoreToFile(user.id, passphrase);
       if (path !== null) {
         setSuccess(t("setupKey.export.savedTo", { path }));
       }
@@ -203,8 +211,12 @@ export function SetupKeyRoute(): JSX.Element {
     setError(null);
     setRawError(null);
     setDebugDetails("");
+    if (user === null) {
+      setError(t("setupKey.errors.noUser"));
+      return;
+    }
     try {
-      const keystore = await readKeystore(passphrase);
+      const keystore = await readKeystore(user.id, passphrase);
       setPrivateKeyArmored(keystore.privateKeyArmored);
       setShareRevealed(true);
     } catch (e) {
@@ -255,12 +267,8 @@ export function SetupKeyRoute(): JSX.Element {
 
         <Tabs.Panel value="generate" pt="md">
           <Stack>
-            <Text size="sm">
-              {t("setupKey.generate.description")}
-            </Text>
-            <Alert color="yellow">
-              {t("setupKey.emptyPassphraseWarning")}
-            </Alert>
+            <Text size="sm">{t("setupKey.generate.description")}</Text>
+            <Alert color="yellow">{t("setupKey.emptyPassphraseWarning")}</Alert>
             <PasswordInput
               label={t("setupKey.passphraseOptional")}
               value={passphrase}
@@ -272,7 +280,9 @@ export function SetupKeyRoute(): JSX.Element {
               onChange={(e) => setConfirm(e.currentTarget.value)}
             />
             <Stack gap={4}>
-              <Text size="sm" fw={500}>{t("setupKey.generate.algorithm")}</Text>
+              <Text size="sm" fw={500}>
+                {t("setupKey.generate.algorithm")}
+              </Text>
               <SegmentedControl
                 value={algorithm}
                 onChange={(v) => setAlgorithm(v as KeyAlgorithm)}
@@ -300,7 +310,9 @@ export function SetupKeyRoute(): JSX.Element {
                   >
                     🔍 Debug info — log: {debugLoc}
                   </summary>
-                  <Code block fz="xs" mt="xs">{debugDetails}</Code>
+                  <Code block fz="xs" mt="xs">
+                    {debugDetails}
+                  </Code>
                 </details>
               </>
             )}
@@ -337,7 +349,9 @@ export function SetupKeyRoute(): JSX.Element {
                   >
                     🔍 Debug info — log: {debugLoc}
                   </summary>
-                  <Code block fz="xs" mt="xs">{debugDetails}</Code>
+                  <Code block fz="xs" mt="xs">
+                    {debugDetails}
+                  </Code>
                 </details>
               </>
             )}
@@ -371,7 +385,9 @@ export function SetupKeyRoute(): JSX.Element {
                   >
                     🔍 Debug info — log: {debugLoc}
                   </summary>
-                  <Code block fz="xs" mt="xs">{debugDetails}</Code>
+                  <Code block fz="xs" mt="xs">
+                    {debugDetails}
+                  </Code>
                 </details>
               </>
             )}
@@ -387,9 +403,7 @@ export function SetupKeyRoute(): JSX.Element {
               icon={<IconShieldLock size={16} />}
               title={t("setupKey.share.title")}
             >
-              <Text size="sm">
-                {t("setupKey.share.warning1")}
-              </Text>
+              <Text size="sm">{t("setupKey.share.warning1")}</Text>
               <Text size="sm" mt="xs">
                 {t("setupKey.share.warning2")}
               </Text>
@@ -421,7 +435,9 @@ export function SetupKeyRoute(): JSX.Element {
                   >
                     🔍 Debug info — log: {debugLoc}
                   </summary>
-                  <Code block fz="xs" mt="xs">{debugDetails}</Code>
+                  <Code block fz="xs" mt="xs">
+                    {debugDetails}
+                  </Code>
                 </details>
               </>
             )}
@@ -437,7 +453,9 @@ export function SetupKeyRoute(): JSX.Element {
             {shareRevealed && privateKeyArmored !== null && (
               <Stack gap="xs">
                 <Group justify="space-between" align="center">
-                  <Text size="xs" c="dimmed">{t("setupKey.share.revealedLabel")}</Text>
+                  <Text size="xs" c="dimmed">
+                    {t("setupKey.share.revealedLabel")}
+                  </Text>
                   <CopyButton value={privateKeyArmored} timeout={1500}>
                     {({ copied, copy }) => (
                       <Button
@@ -452,7 +470,9 @@ export function SetupKeyRoute(): JSX.Element {
                   </CopyButton>
                 </Group>
                 <ScrollArea h={200}>
-                  <Code block fz="xs">{privateKeyArmored}</Code>
+                  <Code block fz="xs">
+                    {privateKeyArmored}
+                  </Code>
                 </ScrollArea>
                 <Button
                   variant="light"
@@ -466,9 +486,7 @@ export function SetupKeyRoute(): JSX.Element {
                   <QRCode value={privateKeyArmored} size={256} />
                 </Group>
                 {privateKeyArmored.length > 2500 && (
-                  <Alert color="yellow">
-                    {t("setupKey.share.qrWarning")}
-                  </Alert>
+                  <Alert color="yellow">{t("setupKey.share.qrWarning")}</Alert>
                 )}
               </Stack>
             )}

@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  createBrowserRouter,
-  Link,
-  useNavigate,
-  type RouteObject,
-} from "react-router-dom";
+import { createBrowserRouter, Link, useNavigate, type RouteObject } from "react-router-dom";
 import { Anchor, Button, Paper, PasswordInput, Stack, TextInput, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 
@@ -58,9 +53,7 @@ export function LoginRoute(): JSX.Element {
           onChange={(e) => setPassword(e.currentTarget.value)}
           required
         />
-        {login.error !== null && (
-          <div style={{ color: "red" }}>{toUserMessage(login.error)}</div>
-        )}
+        {login.error !== null && <div style={{ color: "red" }}>{toUserMessage(login.error)}</div>}
         <Button onClick={handleSubmit} loading={login.isPending}>
           {t("auth.login.submit")}
         </Button>

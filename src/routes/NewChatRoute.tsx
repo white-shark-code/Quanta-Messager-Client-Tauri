@@ -52,7 +52,8 @@ export function NewChatRoute(): JSX.Element {
     }
   }
 
-  const displayError = validationError ?? (createChat.error !== null ? toUserMessage(createChat.error) : null);
+  const displayError =
+    validationError ?? (createChat.error !== null ? toUserMessage(createChat.error) : null);
 
   return (
     <Paper p="md" maw={500} mx="auto" mt={40}>

@@ -7,8 +7,8 @@ const { readIndexBufferMock, writeIndexBufferMock } = vi.hoisted(() => ({
 
 vi.mock("@/infra/tauriBridge", () => {
   return {
-    readIndexBuffer: (...args: unknown[]) => readIndexBufferMock(...args),
-    writeIndexBuffer: (...args: unknown[]) => writeIndexBufferMock(...args),
+    readIndexBuffer: (...args: unknown[]): unknown => readIndexBufferMock(...args) as unknown,
+    writeIndexBuffer: (...args: unknown[]): unknown => writeIndexBufferMock(...args) as unknown,
     readKeystoreBuffer: vi.fn(),
     writeKeystoreBuffer: vi.fn(),
     hasKeystore: vi.fn(),
@@ -53,9 +53,7 @@ describe("secure-store/index — readIndex", () => {
   });
 
   it("returns {users: []} when the buffer contains invalid JSON (defensive)", async () => {
-    readIndexBufferMock.mockResolvedValueOnce(
-      new TextEncoder().encode("{not-valid-json"),
-    );
+    readIndexBufferMock.mockResolvedValueOnce(new TextEncoder().encode("{not-valid-json"));
     await expect(readIndex()).resolves.toEqual({ users: [] });
   });
 

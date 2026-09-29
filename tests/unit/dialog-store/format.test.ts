@@ -22,7 +22,14 @@ const FIXED_KEY = fixedBytes(32, 11);
 describe("dialog format (QDLG1)", () => {
   it("сериализует и round-trip'ит payload, сохраняя chachaNonce и ciphertext", () => {
     const payload = [
-      { id: "m1", chat_id: "c1", owner_id: "u1", encrypted_message: "AAAA", signature: null, creation_datetime: "2026-09-01T10:00:00.000Z" },
+      {
+        id: "m1",
+        chat_id: "c1",
+        owner_id: "u1",
+        encrypted_message: "AAAA",
+        signature: null,
+        creation_datetime: "2026-09-01T10:00:00.000Z",
+      },
     ];
 
     const { ciphertext, chachaNonce } = serializeDialog(payload, FIXED_KEY);

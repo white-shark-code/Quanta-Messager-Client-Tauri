@@ -59,7 +59,11 @@ function getKey(userId: string): Uint8Array {
 /** Сортирует сообщения по `creation_datetime` по возрастанию. */
 function sortByCreatedAt(messages: DialogMessage[]): DialogMessage[] {
   return [...messages].sort((a, b) =>
-    a.creation_datetime < b.creation_datetime ? -1 : a.creation_datetime > b.creation_datetime ? 1 : 0,
+    a.creation_datetime < b.creation_datetime
+      ? -1
+      : a.creation_datetime > b.creation_datetime
+        ? 1
+        : 0,
   );
 }
 
@@ -169,7 +173,7 @@ export async function listDialogs(userId: string): Promise<string[]> {
  * `fetchPage0` потом дольёт сверху.
  */
 export interface SeededPage<T> {
-  pages: Array<{ items: T[] }>;
+  pages: { items: T[] }[];
   pageParams: number[];
 }
 

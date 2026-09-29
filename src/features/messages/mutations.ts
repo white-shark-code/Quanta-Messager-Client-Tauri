@@ -281,9 +281,7 @@ function useSendMessage(
           : publicKey !== null
             ? "encrypt-to-self"
             : "none";
-      console.log(
-        `[send ${kind}] mode=${mode} peerArmoredLen=${peerArmored?.length ?? 0}`,
-      );
+      console.log(`[send ${kind}] mode=${mode} peerArmoredLen=${peerArmored?.length ?? 0}`);
 
       if (publicKey === null) {
         throw new Error("Own public key not loaded");

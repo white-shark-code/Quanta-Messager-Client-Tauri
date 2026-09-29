@@ -1,13 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  changePublicKey,
-  login,
-  logout,
-  me,
-  register,
-} from "@/features/auth/api";
+import { changePublicKey, login, logout, me, register } from "@/features/auth/api";
 import { configureClient } from "@/infra/apiClient";
 
 import { server } from "../../mocks/server";
@@ -216,7 +210,10 @@ describe("auth/api", () => {
   describe("logout", () => {
     it("POSTs to /auth/logout and resolves without throwing on success", async () => {
       server.use(
-        http.post("http://localhost:8000/auth/logout", () => new HttpResponse(null, { status: 204 })),
+        http.post(
+          "http://localhost:8000/auth/logout",
+          () => new HttpResponse(null, { status: 204 }),
+        ),
       );
 
       await expect(logout()).resolves.toBeUndefined();
@@ -233,9 +230,7 @@ describe("auth/api", () => {
     });
 
     it("does NOT throw on network-level failure", async () => {
-      server.use(
-        http.post("http://localhost:8000/auth/logout", () => HttpResponse.error()),
-      );
+      server.use(http.post("http://localhost:8000/auth/logout", () => HttpResponse.error()));
 
       await expect(logout()).resolves.toBeUndefined();
     });

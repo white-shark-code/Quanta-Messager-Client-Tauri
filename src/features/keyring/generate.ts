@@ -35,8 +35,8 @@ function generateDialogKeyB64(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i] ?? 0);
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
   }
   return btoa(binary);
 }
@@ -188,7 +188,9 @@ export async function importAndStoreKey(
     email: userEmail,
     lastUsedAt: new Date().toISOString(),
   });
-  await useKeyringStore.getState().setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase, payload.dialogKey);
+  await useKeyringStore
+    .getState()
+    .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase, payload.dialogKey);
   useSessionStore.getState().setFingerprint(fingerprint);
 }
 

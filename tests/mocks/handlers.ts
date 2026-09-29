@@ -91,10 +91,7 @@ interface CreateMessageRequestBody {
  * self-copy (the row the sender's UI can decrypt). Requires both
  * pairs, otherwise 422 like the real API.
  */
-function fakeSentMessage(
-  chatId: string,
-  body: CreateMessageRequestBody,
-): DialogMessageResponse {
+function fakeSentMessage(chatId: string, body: CreateMessageRequestBody): DialogMessageResponse {
   const base = fakeDialogMessage(chatId);
   return {
     ...base,
@@ -243,7 +240,7 @@ export const handlers = [
   // Mirrors the real backend: `public_key` is base64 of the
   // ASCII-armored key bytes (FastAPI jsonable_encoder over `bytes`).
   http.get("http://localhost:8000/users/:userId/public-key", ({ params }) => {
-    const userId = typeof params["userId"] === "string" ? params["userId"] : "user-2";
+    const userId = typeof params.userId === "string" ? params.userId : "user-2";
     if (userId === "user-nokey") {
       return HttpResponse.json({
         user_id: userId,
@@ -255,8 +252,8 @@ export const handlers = [
       "-----BEGIN PGP PUBLIC KEY BLOCK-----\nZmFrZS1rZXktYmxvYg==\n-----END PGP PUBLIC KEY BLOCK-----\n";
     let binary = "";
     const bytes = new TextEncoder().encode(armored);
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i] ?? 0);
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte);
     }
     return HttpResponse.json({
       user_id: userId,
@@ -324,7 +321,7 @@ export const handlers = [
   }),
 
   http.get("http://localhost:8000/messages/private-chat/:chatId", ({ params }) => {
-    const id = params["chatId"];
+    const id = params.chatId;
     const chat: PrivateChatResponse = {
       id: typeof id === "string" ? id : "chat-1",
       name: "single",
@@ -336,7 +333,7 @@ export const handlers = [
   }),
 
   http.delete("http://localhost:8000/messages/private-chat/:chatId/", ({ params }) => {
-    const id = params["chatId"];
+    const id = params.chatId;
     const chat: PrivateChatResponse = {
       id: typeof id === "string" ? id : "chat-1",
       name: "deleted",
@@ -419,7 +416,7 @@ export const handlers = [
     return HttpResponse.json(resp);
   }),
 
-  http.post("http://localhost:8000/event/dialog/readed/:eventId", async ({ params, request }) => {
+  http.post("http://localhost:8000/event/dialog/readed/:eventId", async ({ request }) => {
     const text = await request.text();
     return new HttpResponse(text.length === 0 ? "" : text, {
       status: 200,
@@ -427,7 +424,7 @@ export const handlers = [
     });
   }),
 
-  http.post("http://localhost:8000/event/group/readed/:eventId", async ({ params, request }) => {
+  http.post("http://localhost:8000/event/group/readed/:eventId", async ({ request }) => {
     const text = await request.text();
     return new HttpResponse(text.length === 0 ? "" : text, {
       status: 200,
@@ -435,71 +432,83 @@ export const handlers = [
     });
   }),
 
-  http.get("http://localhost:8000/messages/private-messages/:chatId", async ({ request, params }) => {
-    capturedMessageApi.privateList = {
-      method: request.method,
-      url: request.url,
-      body: await request.text().catch(() => null),
-      query: new URL(request.url).searchParams,
-    };
-    const chatId = typeof params["chatId"] === "string" ? params["chatId"] : "chat";
-    const resp: ListMessagesResponse = { items: [fakeDialogMessage(chatId)] };
-    return HttpResponse.json(resp);
-  }),
+  http.get(
+    "http://localhost:8000/messages/private-messages/:chatId",
+    async ({ request, params }) => {
+      capturedMessageApi.privateList = {
+        method: request.method,
+        url: request.url,
+        body: await request.text().catch(() => null),
+        query: new URL(request.url).searchParams,
+      };
+      const chatId = typeof params.chatId === "string" ? params.chatId : "chat";
+      const resp: ListMessagesResponse = { items: [fakeDialogMessage(chatId)] };
+      return HttpResponse.json(resp);
+    },
+  ),
 
-  http.post("http://localhost:8000/messages/private-message/:chatId", async ({ request, params }) => {
-    const raw = await request.text();
-    let parsed: unknown = raw;
-    try {
-      parsed = JSON.parse(raw) as CreateMessageRequestBody;
-    } catch {
-      parsed = raw;
-    }
-    capturedMessageApi.privateSend = {
-      method: request.method,
-      url: request.url,
-      body: parsed,
-      query: new URL(request.url).searchParams,
-    };
-    const chatId = typeof params["chatId"] === "string" ? params["chatId"] : "chat";
-    const body = parsed as CreateMessageRequestBody;
-    if (typeof body !== "object" || body === null || !hasSelfCopy(body)) {
-      return HttpResponse.json({ detail: "self-copy required" }, { status: 422 });
-    }
-    return HttpResponse.json(fakeSentMessage(chatId, body));
-  }),
+  http.post(
+    "http://localhost:8000/messages/private-message/:chatId",
+    async ({ request, params }) => {
+      const raw = await request.text();
+      let parsed: unknown = raw;
+      try {
+        parsed = JSON.parse(raw) as CreateMessageRequestBody;
+      } catch {
+        parsed = raw;
+      }
+      capturedMessageApi.privateSend = {
+        method: request.method,
+        url: request.url,
+        body: parsed,
+        query: new URL(request.url).searchParams,
+      };
+      const chatId = typeof params.chatId === "string" ? params.chatId : "chat";
+      const body = parsed as CreateMessageRequestBody;
+      if (typeof body !== "object" || body === null || !hasSelfCopy(body)) {
+        return HttpResponse.json({ detail: "self-copy required" }, { status: 422 });
+      }
+      return HttpResponse.json(fakeSentMessage(chatId, body));
+    },
+  ),
 
-  http.get("http://localhost:8000/group-messages/group-message/:chatId", async ({ request, params }) => {
-    capturedMessageApi.groupList = {
-      method: request.method,
-      url: request.url,
-      body: await request.text().catch(() => null),
-      query: new URL(request.url).searchParams,
-    };
-    const chatId = typeof params["chatId"] === "string" ? params["chatId"] : "group";
-    const resp: ListMessagesResponse = { items: [fakeDialogMessage(chatId)] };
-    return HttpResponse.json(resp);
-  }),
+  http.get(
+    "http://localhost:8000/group-messages/group-message/:chatId",
+    async ({ request, params }) => {
+      capturedMessageApi.groupList = {
+        method: request.method,
+        url: request.url,
+        body: await request.text().catch(() => null),
+        query: new URL(request.url).searchParams,
+      };
+      const chatId = typeof params.chatId === "string" ? params.chatId : "group";
+      const resp: ListMessagesResponse = { items: [fakeDialogMessage(chatId)] };
+      return HttpResponse.json(resp);
+    },
+  ),
 
-  http.post("http://localhost:8000/group-messages/group-message/:chatId", async ({ request, params }) => {
-    const raw = await request.text();
-    let parsed: unknown = raw;
-    try {
-      parsed = JSON.parse(raw) as CreateMessageRequestBody;
-    } catch {
-      parsed = raw;
-    }
-    capturedMessageApi.groupSend = {
-      method: request.method,
-      url: request.url,
-      body: parsed,
-      query: new URL(request.url).searchParams,
-    };
-    const chatId = typeof params["chatId"] === "string" ? params["chatId"] : "group";
-    const body = parsed as CreateMessageRequestBody;
-    if (typeof body !== "object" || body === null || !hasSelfCopy(body)) {
-      return HttpResponse.json({ detail: "self-copy required" }, { status: 422 });
-    }
-    return HttpResponse.json(fakeSentMessage(chatId, body));
-  }),
+  http.post(
+    "http://localhost:8000/group-messages/group-message/:chatId",
+    async ({ request, params }) => {
+      const raw = await request.text();
+      let parsed: unknown = raw;
+      try {
+        parsed = JSON.parse(raw) as CreateMessageRequestBody;
+      } catch {
+        parsed = raw;
+      }
+      capturedMessageApi.groupSend = {
+        method: request.method,
+        url: request.url,
+        body: parsed,
+        query: new URL(request.url).searchParams,
+      };
+      const chatId = typeof params.chatId === "string" ? params.chatId : "group";
+      const body = parsed as CreateMessageRequestBody;
+      if (typeof body !== "object" || body === null || !hasSelfCopy(body)) {
+        return HttpResponse.json({ detail: "self-copy required" }, { status: 422 });
+      }
+      return HttpResponse.json(fakeSentMessage(chatId, body));
+    },
+  ),
 ];

@@ -6,8 +6,8 @@ on:
       - "v*"
 
 permissions:
-  contents: write  # for creating releases
-  id-token: write  # for signing (if configured later)
+  contents: write # for creating releases
+  id-token: write # for signing (if configured later)
 
 jobs:
   create-release:
