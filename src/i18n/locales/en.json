@@ -97,6 +97,11 @@
     "about": "About",
     "email": "Email",
     "userId": "User ID",
+    "keysTitle": "PGP keys",
+    "localFingerprint": "This device",
+    "serverFingerprint": "Server",
+    "keysMatch": "Fingerprints match",
+    "keysMismatch": "MISMATCH — re-run key setup on this device",
     "language": "Language",
     "theme": "Theme",
     "currentTheme": "Current: {{theme}}",
@@ -127,7 +132,8 @@
   "chat": {
     "peerNoKeyTitle": "Recipient has no PGP key",
     "peerNoKeyDescription": "{{email}} hasn't set up end-to-end encryption yet. Messages you send from this device will be encrypted to yourself only — they won't be readable by the recipient until they generate or import a key.",
-    "loadingPeerKey": "Looking up recipient's PGP key…"
+    "loadingPeerKey": "Looking up recipient's PGP key…",
+    "peerKeyErrorTitle": "Couldn't load recipient's PGP key"
   },
   "createKeystore": {
     "title": "Create secure keystore",

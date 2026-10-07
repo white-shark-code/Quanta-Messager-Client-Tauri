@@ -29,6 +29,7 @@
 
 import * as keyring from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
+import { decodeWireBytes } from "@/lib/wire";
 
 import * as mediaApi from "./api";
 
@@ -166,13 +167,13 @@ export async function downloadAndDecryptGroup(mediaId: string): Promise<CachedMe
  * ------------------------------------------------------------------ */
 
 /**
- * Decode a base64 string into a `Uint8Array`. Same shape as the helper in
- * `features/messages/queries.ts` — kept local because the two features
- * don't otherwise share a base64 utility (avoids adding a cross-feature
- * import for a 1-liner).
+ * Decode a wire binary field into a `Uint8Array`. Server blobs
+ * (`encrypted_file`, `signature`) arrive as base64 per contract but
+ * have been observed as raw armor text (same DB drift as user public
+ * keys) — the shared tolerant decoder accepts both shapes.
  */
 function base64ToBytes(b64: string): Uint8Array {
-  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  return decodeWireBytes(b64);
 }
 
 /**

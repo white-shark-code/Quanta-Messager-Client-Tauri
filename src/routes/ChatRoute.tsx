@@ -57,6 +57,15 @@ export function ChatRoute(): JSX.Element | null {
   // A 404 means the peer UUID doesn't resolve to a user — degenerate
   // case, but treat it the same as "no key" so the user gets feedback.
   const peerLookup404 = peerKey.error instanceof ApiError && peerKey.error.status === 404;
+  // Any OTHER lookup failure (network, 401/500, malformed payload —
+  // e.g. the backend serving raw armor text instead of base64 used to
+  // blow up the base64 decoder here) must not be silent: without this,
+  // there is no banner, the composer stays enabled, and the send
+  // throws a cryptic "peer public key missing". Surface it in red and
+  // block the composer until the lookup succeeds.
+  const peerLookupError = peerKey.error !== null && !peerLookup404;
+  const peerLookupErrorMessage =
+    peerLookupError && peerKey.error !== null ? toUserMessage(peerKey.error) : undefined;
   // True only while the hook hasn't produced data yet (initial mount
   // or a refetch). Once we have *any* answer — even has_public_key=false
   // — we treat the lookup as done.
@@ -120,7 +129,7 @@ export function ChatRoute(): JSX.Element | null {
     ? t("chat.loadingPeerKey")
     : peerMissingKey || peerLookup404
       ? t("chat.peerNoKeyDescription", { email: peerLabel })
-      : undefined;
+      : peerLookupErrorMessage;
 
   return (
     <Stack
@@ -168,6 +177,17 @@ export function ChatRoute(): JSX.Element | null {
       {peerKeyLoading && (
         <Alert color="blue" icon={<Loader size={16} />} mx="sm" title={t("chat.loadingPeerKey")}>
           {t("chat.loadingPeerKey")}
+        </Alert>
+      )}
+
+      {peerLookupErrorMessage !== undefined && (
+        <Alert
+          color="red"
+          icon={<IconAlertCircle size={16} />}
+          mx="sm"
+          title={t("chat.peerKeyErrorTitle")}
+        >
+          {peerLookupErrorMessage}
         </Alert>
       )}
 

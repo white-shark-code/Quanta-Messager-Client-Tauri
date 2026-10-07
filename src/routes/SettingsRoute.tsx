@@ -39,10 +39,76 @@ import { useNavigate } from "react-router-dom";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { deleteKeystoreForUser } from "@/features/keyring/generate";
+import { fingerprintOf } from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { useSettingsStore } from "@/features/settings/settingsStore";
+import { useUserPublicKey } from "@/features/users/queries";
 import { clearDebugLog, getDebugLog, getDebugLogLocation } from "@/lib/debug";
 import { ColorSchemeToggle } from "@/ui/components/ColorSchemeToggle";
+
+/**
+ * Local-vs-server PGP fingerprint comparison.
+ *
+ * The local fingerprint comes from the in-memory keyring (the key this
+ * device actually encrypts/signs with); the server one is fetched via
+ * the same public-key lookup the chat uses. A mismatch means this
+ * device holds a stale keypair (e.g. key setup was repeated in another
+ * browser) — messages will decrypt but never verify, and sends from
+ * here target the wrong identity. The fix is to re-run key setup on
+ * this device, not to touch the chat code.
+ */
+function KeyFingerprints({ userId }: { userId: string | undefined }): JSX.Element | null {
+  const { t } = useTranslation();
+  const localFingerprint = useKeyringStore((s) => s.fingerprint);
+  const serverKey = useUserPublicKey(userId);
+  const [serverFingerprint, setServerFingerprint] = useState<string | null>(null);
+
+  useEffect(() => {
+    const armor = serverKey.data?.public_key ?? null;
+    if (serverKey.data?.has_public_key !== true || armor === null) {
+      setServerFingerprint(null);
+      return;
+    }
+    let cancelled = false;
+    void fingerprintOf(armor)
+      .then((fp) => {
+        if (!cancelled) setServerFingerprint(fp);
+      })
+      .catch(() => {
+        if (!cancelled) setServerFingerprint(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverKey.data]);
+
+  if (userId === undefined) return null;
+  const comparable = localFingerprint !== null && serverFingerprint !== null;
+  const match = comparable && localFingerprint === serverFingerprint;
+
+  return (
+    <Paper withBorder p="md">
+      <Stack>
+        <Text fw={500}>{t("settings.keysTitle")}</Text>
+        <Group justify="space-between">
+          <Text>{t("settings.localFingerprint")}</Text>
+          <Code>{localFingerprint ?? "—"}</Code>
+        </Group>
+        <Group justify="space-between">
+          <Text>{t("settings.serverFingerprint")}</Text>
+          <Code>{serverKey.isFetching ? "…" : (serverFingerprint ?? "—")}</Code>
+        </Group>
+        {comparable && (
+          <Group>
+            <Badge color={match ? "green" : "red"}>
+              {match ? t("settings.keysMatch") : t("settings.keysMismatch")}
+            </Badge>
+          </Group>
+        )}
+      </Stack>
+    </Paper>
+  );
+}
 
 export function SettingsRoute(): JSX.Element {
   const { t } = useTranslation();
@@ -123,6 +189,7 @@ export function SettingsRoute(): JSX.Element {
               </Button>
             </Stack>
           </Paper>
+          <KeyFingerprints userId={user?.id} />
         </Tabs.Panel>
 
         <Tabs.Panel value="appearance" pt="md">

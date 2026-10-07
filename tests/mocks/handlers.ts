@@ -248,6 +248,16 @@ export const handlers = [
         public_key: null,
       });
     }
+    // Drifted deployment shape (observed live): raw armor text instead
+    // of base64 — the client must accept it as-is, not atob() it.
+    if (userId === "user-raw-armor") {
+      return HttpResponse.json({
+        user_id: userId,
+        has_public_key: true,
+        public_key:
+          "-----BEGIN PGP PUBLIC KEY BLOCK-----\nRawArmorBody\n-----END PGP PUBLIC KEY BLOCK-----\n",
+      });
+    }
     const armored =
       "-----BEGIN PGP PUBLIC KEY BLOCK-----\nZmFrZS1rZXktYmxvYg==\n-----END PGP PUBLIC KEY BLOCK-----\n";
     let binary = "";

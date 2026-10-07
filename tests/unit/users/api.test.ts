@@ -29,5 +29,13 @@ describe("users/api", () => {
       expect(result.has_public_key).toBe(false);
       expect(result.public_key).toBeNull();
     });
+
+    it("принимает raw armor-текст без base64-декодирования (дрейф бэкенда)", async () => {
+      const result = await getUserPublicKey("user-raw-armor");
+
+      expect(result.has_public_key).toBe(true);
+      expect(result.public_key).toContain("-----BEGIN PGP PUBLIC KEY BLOCK-----");
+      expect(result.public_key).toContain("RawArmorBody");
+    });
   });
 });

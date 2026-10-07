@@ -37,13 +37,16 @@
  * When disabled the query stays idle and `data` stays `undefined`, so
  * the UI is expected to render a "🔒 Locked" placeholder.
  *
- * MVP caveat (see `.agents/report_for_backend/01`): there is no
- * per-message sender-public-key lookup yet, so verification falls back
- * to the current user's own public key. That is correct for self-
- * messages (notes-to-self) and will mis-verify for real correspondents
- * until the backend exposes the missing endpoint. Decryption itself
- * still works in both cases because the recipient is always the
- * current user.
+ * Sender-key resolution: `MessageBubble` resolves the sender's key via
+ * the existing per-user public-key endpoint
+ * (`useUserPublicKey(message.owner_id)`, cached per user id) and passes
+ * it as `senderPublicKeyArmored`, so peer messages verify against the
+ * real sender key. When no sender key is available (own messages, or a
+ * peer that hasn't uploaded a key) verification falls back to the
+ * current user's own public key — correct for self-messages, honest
+ * `verified: false` otherwise. Decryption itself always uses the local
+ * private key and works in both cases because the backend hands each
+ * viewer the ciphertext copy they can open.
  */
 
 import {
@@ -60,6 +63,7 @@ import type * as openpgp from "openpgp";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import * as keyring from "@/features/keyring/encrypt";
 import { debugLog } from "@/lib/debug";
+import { decodeWireBytes } from "@/lib/wire";
 import { appendManyDialog } from "@/features/dialog-store/store";
 import { useSessionStore } from "@/features/auth/sessionStore";
 
@@ -77,11 +81,28 @@ export interface DecryptedMessage {
 }
 
 /**
- * Module-scoped map. Keyed by `messageId` (UUID from the wire). Lives
- * for the lifetime of the JS context — wiped by {@link clearDecryptedCache}
- * on lock / logout. Not persisted; never reaches the server.
+ * Module-scoped map. Keyed by `messageId` PLUS the sender key used for
+ * verification (see {@link decryptCacheKey}): the same message first
+ * decrypted before the sender lookup resolves (verified against the
+ * fallback own key → `verified: false`) must not satisfy a later
+ * lookup carrying the real sender key — otherwise the first `false`
+ * sticks forever under `staleTime: Infinity`. Lives for the lifetime
+ * of the JS context — wiped by {@link clearDecryptedCache} on lock /
+ * logout. Not persisted; never reaches the server.
  */
 const decryptedCache = new Map<string, DecryptedMessage>();
+
+/**
+ * Build the {@link decryptedCache} key. `undefined` sender means the
+ * own-key fallback path; any armor string addresses its own slot so a
+ * later-arriving sender key triggers a genuine re-decrypt +
+ * re-verify instead of replaying the fallback result.
+ */
+function decryptCacheKey(messageId: string, senderPublicKeyArmored?: string): string {
+  return senderPublicKeyArmored === undefined
+    ? `${messageId}:self`
+    : `${messageId}:peer:${senderPublicKeyArmored}`;
+}
 
 /**
  * Wipe the entire decryption cache. Call on lock / logout — once the
@@ -94,27 +115,18 @@ export function clearDecryptedCache(): void {
 }
 
 /**
- * Manual read-access to the decryption cache. Returns `undefined` if
- * the message hasn't been decrypted yet (either because it hasn't
- * rendered or because decryption hasn't completed). Lets non-React
- * code (logging, tests) peek without subscribing to a query.
+ * Manual read-access to the decryption cache. Returns the self-verified
+ * entry when present, else the first peer-verified entry for the id, else
+ * `undefined` (message hasn't decrypted yet). Lets non-React code
+ * (logging, tests) peek without subscribing to a query.
  */
 export function getDecrypted(id: string): DecryptedMessage | undefined {
-  return decryptedCache.get(id);
-}
-
-/* ------------------------------------------------------------------ *
- * Wire → Uint8Array helper
- * ------------------------------------------------------------------ */
-
-/**
- * Decode a base64-encoded string from the wire into a `Uint8Array`.
- * `Message.encrypted_message` and `Message.signature` arrive on the
- * wire as base64 strings (per `model.ts`); `decryptText` expects raw
- * bytes.
- */
-function decodeBase64(b64: string): Uint8Array {
-  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const self = decryptedCache.get(decryptCacheKey(id));
+  if (self !== undefined) return self;
+  for (const [key, value] of decryptedCache) {
+    if (key.startsWith(`${id}:peer:`)) return value;
+  }
+  return undefined;
 }
 
 /* ------------------------------------------------------------------ *
@@ -148,19 +160,19 @@ async function tryDecrypt(
     return null;
   }
 
-  const encrypted = decodeBase64(msg.encrypted_message);
+  const encrypted = decodeWireBytes(msg.encrypted_message);
   // Pre-migration messages have `signature: null`. The decrypt path
   // accepts the empty Uint8Array as "no detached signature provided"
   // — verification still runs on the embedded plaintext signature.
   const signature =
     msg.signature !== null && msg.signature.length > 0
-      ? decodeBase64(msg.signature)
+      ? decodeWireBytes(msg.signature)
       : new Uint8Array(0);
 
   // `decryptText` throws on actual decrypt failure (no matching key,
-  // corrupt ciphertext). Surface it as `null` so the UI can render a
-  // placeholder rather than crashing the whole message list — but
-  // capture the failure into the debug log first so we can debug it.
+  // corrupt ciphertext). Wire decoding above can also throw on garbage
+  // payloads — both surface as `null` so the UI renders a placeholder
+  // rather than crashing the list, with the failure in the debug log.
   try {
     return await keyring.decryptText(encrypted, signature, senderKey, privateKey);
   } catch (e) {
@@ -179,7 +191,8 @@ async function decryptMessage(
   msg: DialogMessage,
   senderPublicKeyArmored?: string,
 ): Promise<DecryptedMessage | null> {
-  const cached = decryptedCache.get(msg.id);
+  const cacheKey = decryptCacheKey(msg.id, senderPublicKeyArmored);
+  const cached = decryptedCache.get(cacheKey);
   if (cached !== undefined) {
     return cached;
   }
@@ -188,7 +201,7 @@ async function decryptMessage(
   const result = await tryDecrypt(msg, { privateKey, publicKey }, senderPublicKeyArmored);
 
   if (result !== null) {
-    decryptedCache.set(msg.id, result);
+    decryptedCache.set(cacheKey, result);
   }
   return result;
 }
@@ -332,6 +345,12 @@ export function useGroupMessages(
  *
  * `staleTime: Infinity` because the plaintext of a given `messageId`
  * never changes; React Query won't refetch on remount.
+ *
+ * The query key includes the sender-key armor: the sender lookup often
+ * resolves AFTER the first decrypt attempt (which then verifies against
+ * the fallback own key and caches `verified: false` forever under
+ * `staleTime: Infinity`). When the real sender key lands, the key
+ * changes and the message is re-decrypted + re-verified properly.
  */
 export function useDecryptedMessage(
   messageId: string,
@@ -342,7 +361,7 @@ export function useDecryptedMessage(
   const privateKey = useKeyringStore((s) => s.privateKey);
 
   return useQuery<DecryptedMessage | null, Error>({
-    queryKey: ["message-decrypt", messageId],
+    queryKey: ["message-decrypt", messageId, senderPublicKeyArmored ?? ""],
     enabled: privateKey !== null && encryptedMessage.length > 0,
     staleTime: Infinity,
     queryFn: async (): Promise<DecryptedMessage | null> => {

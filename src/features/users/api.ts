@@ -6,11 +6,17 @@
  *   GET /users/{user_id}/public-key  →  PublicKeyResponse
  */
 import { apiClient } from "@/infra/apiClient";
+import { decodeWireText } from "@/lib/wire";
 
 /**
- * Raw wire shape: FastAPI's `jsonable_encoder` base64-encodes the
- * `bytes` column, so `public_key` arrives as base64 of the
- * ASCII-armored key text — NOT as armored text itself.
+ * Raw wire shape.
+ *
+ * Contract: FastAPI's `jsonable_encoder` base64-encodes the `bytes`
+ * column, so `public_key` arrives as base64 of the ASCII-armored key
+ * text. Reality: some deployments serve raw armor text instead
+ * (DB column drift — observed live: armor with newlines, 200 OK,
+ * `has_public_key: true`). Decoding is tolerant to both shapes
+ * (see `decodeWireText`).
  */
 interface PublicKeyWireResponse {
   user_id: string;
@@ -24,17 +30,10 @@ export interface PublicKeyResponse {
   /**
    * ASCII-armored PGP public key text, ready for
    * `keyring.importPublicKey`. `null` when `has_public_key` is false.
-   * `getUserPublicKey` decodes the base64 wire form — callers must
-   * NOT decode again.
+   * `getUserPublicKey` tolerantly decodes the wire form (base64 or
+   * raw armor) — callers must NOT decode again.
    */
   public_key: string | null;
-}
-
-/** base64 → UTF-8 string (armored key text). */
-function b64ToText(b64: string): string {
-  const binary = atob(b64);
-  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
 }
 
 /**
@@ -49,6 +48,7 @@ export async function getUserPublicKey(userId: string): Promise<PublicKeyRespons
   return {
     user_id: wire.user_id,
     has_public_key: wire.has_public_key,
-    public_key: wire.has_public_key && wire.public_key !== null ? b64ToText(wire.public_key) : null,
+    public_key:
+      wire.has_public_key && wire.public_key !== null ? decodeWireText(wire.public_key) : null,
   };
 }

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { DialogMessage } from "../model";
 import type { PendingMessage } from "../mutations";
 import { useDecryptedMessage } from "../queries";
+import { useUserPublicKey } from "@/features/users/queries";
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { useRetryMessage } from "../mutations";
 
@@ -27,10 +28,22 @@ export function MessageBubble({ message, chatId }: MessageBubbleProps) {
   const pending = isPending(message);
   const retry = useRetryMessage(chatId);
 
+  // Resolve the ACTUAL sender's key for verification instead of our
+  // own: every message carries `owner_id`, and the peer-key lookup is
+  // cached per user id (shared with ChatRoute), so in 1:1 chats this
+  // adds zero network requests. Own/pending messages keep the previous
+  // behaviour — `undefined` falls back to our own key in `tryDecrypt`.
+  // A peer without an uploaded key also falls back (mis-verifies to `!`,
+  // which is honest: there is nothing to verify against).
+  const senderKey = useUserPublicKey(!pending && !isMine ? message.owner_id : undefined);
+  const senderArmor =
+    senderKey.data?.has_public_key === true ? (senderKey.data.public_key ?? undefined) : undefined;
+
   const { data: decrypted, isLoading: decrypting } = useDecryptedMessage(
     message.id,
     pending ? "" : message.encrypted_message,
     pending ? "" : (message.signature ?? ""),
+    senderArmor,
   );
 
   const text = pending
