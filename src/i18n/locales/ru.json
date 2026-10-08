@@ -39,6 +39,7 @@
     "logout": "Выйти"
   },
   "nav": {
+    "appName": "Quant",
     "chats": "Чаты",
     "newChat": "Новый чат",
     "settings": "Настройки",
@@ -120,6 +121,12 @@
     "logoutConfirmTitle": "Выйти?",
     "logoutEraseData": "Стереть все данные этого пользователя на устройстве",
     "notifications": "Уведомления",
+    "pushTitle": "Push-уведомления",
+    "pushDenied": "Разрешение на уведомления отклонено — включите его в настройках системы/браузера и попробуйте снова.",
+    "pushNoVapid": "Push не настроен на сервере (нет VAPID-ключа).",
+    "pushError": "Не удалось включить push: {{reason}}",
+    "pushUnsupported": "Этот браузер не поддерживает Web Push (нет Service Worker или PushManager) — уведомления работают только при открытом приложении.",
+    "pushSubscribeFailed": "Браузер не смог подписаться на push-сервис. Так бывает в ungoogled-chromium и сборках без ключей Google — Web Push там невозможен, уведомления работают только при открытом приложении. Можно попробовать снова.",
     "version": "v0.1.0 — alpha",
     "aboutDescription": "E2E-encrypted мессенджер. Архитектура zero-knowledge.",
     "diagnostics": {
@@ -129,13 +136,6 @@
       "clear": "Очистить",
       "empty": "(пусто — записей нет)"
     }
-  },
-  "nav": {
-    "appName": "Quant",
-    "chats": "Чаты",
-    "newChat": "Новый чат",
-    "settings": "Настройки",
-    "keys": "Ключи"
   },
   "chat": {
     "peerNoKeyTitle": "У собеседника нет PGP-ключа",

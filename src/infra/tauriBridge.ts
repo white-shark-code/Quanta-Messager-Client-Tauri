@@ -505,7 +505,24 @@ export async function notify(title: string, body: string): Promise<void> {
  */
 export async function ensureNotificationPermission(): Promise<boolean> {
   if (!isTauri()) {
-    return true;
+    // Plain browser (vite dev): drive the Web Notification API directly.
+    // Returning `true` unconditionally here used to skip the browser
+    // prompt entirely, so the push toggle reported "denied" without the
+    // user ever seeing a permission request.
+    try {
+      if (typeof Notification === "undefined") {
+        return false;
+      }
+      if (Notification.permission === "granted") {
+        return true;
+      }
+      if (Notification.permission === "denied") {
+        return false;
+      }
+      return (await Notification.requestPermission()) === "granted";
+    } catch {
+      return false;
+    }
   }
   if (await isPermissionGranted()) {
     return true;

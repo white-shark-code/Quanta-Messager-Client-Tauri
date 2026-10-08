@@ -15,6 +15,12 @@ export interface Settings {
   apiBaseUrl: string;
   notificationsEnabled: boolean;
   realtimeMode: RealtimeMode;
+  /**
+   * Web Push subscription switch (B2). Explicit opt-in, default `false` —
+   * push is only ever (re)subscribed after the user flips the toggle in
+   * Settings (or unlock re-registers an already-enabled subscription).
+   */
+  pushEnabled: boolean;
 }
 
 export interface SettingsState extends Settings {
@@ -33,6 +39,7 @@ const SETTINGS_KEYS = [
   "apiBaseUrl",
   "notificationsEnabled",
   "realtimeMode",
+  "pushEnabled",
 ] as const satisfies readonly (keyof Settings)[];
 
 const viteApiUrl = (import.meta.env as { VITE_API_URL?: unknown }).VITE_API_URL;
@@ -47,6 +54,7 @@ const defaults: Settings = {
     typeof viteApiUrl === "string" && viteApiUrl.length > 0 ? viteApiUrl : "http://localhost:8000",
   notificationsEnabled: true,
   realtimeMode: "ws",
+  pushEnabled: false,
 };
 
 const tauriStore = new LazyStore("settings.json");
@@ -81,6 +89,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // a corrupted value is dropped so the default ("ws") wins.
     if (loaded.realtimeMode !== "ws" && loaded.realtimeMode !== "polling") {
       delete loaded.realtimeMode;
+    }
+    // Same for `pushEnabled` (B2): pre-push settings files have no key,
+    // and any non-boolean persisted value falls back to `false`.
+    if (typeof loaded.pushEnabled !== "boolean") {
+      delete loaded.pushEnabled;
     }
     set({ ...defaults, ...loaded, hydrated: true });
   },

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ensureNotificationPermission,
@@ -156,8 +156,31 @@ describe("tauriBridge — browser fallback (notifications)", () => {
     await expect(notify("title", "body")).resolves.toBeUndefined();
   });
 
-  it("ensureNotificationPermission() returns true in browser mode", async () => {
+  it("ensureNotificationPermission() returns true when already granted", async () => {
+    vi.stubGlobal("Notification", { permission: "granted" });
     await expect(ensureNotificationPermission()).resolves.toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("ensureNotificationPermission() requests and honors the browser prompt", async () => {
+    vi.stubGlobal("Notification", {
+      permission: "default",
+      requestPermission: vi.fn().mockResolvedValue("granted"),
+    });
+    await expect(ensureNotificationPermission()).resolves.toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("ensureNotificationPermission() returns false when denied", async () => {
+    vi.stubGlobal("Notification", { permission: "denied" });
+    await expect(ensureNotificationPermission()).resolves.toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("ensureNotificationPermission() returns false without Notification API", async () => {
+    vi.stubGlobal("Notification", undefined);
+    await expect(ensureNotificationPermission()).resolves.toBe(false);
+    vi.unstubAllGlobals();
   });
 });
 

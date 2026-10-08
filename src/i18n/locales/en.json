@@ -39,6 +39,7 @@
     "logout": "Logout"
   },
   "nav": {
+    "appName": "Quant",
     "chats": "Chats",
     "newChat": "New chat",
     "settings": "Settings",
@@ -120,6 +121,12 @@
     "logoutConfirmTitle": "Log out?",
     "logoutEraseData": "Erase all data on this device for this user",
     "notifications": "Notifications",
+    "pushTitle": "Push notifications",
+    "pushDenied": "Notification permission was denied — enable it in your system/browser settings and try again.",
+    "pushNoVapid": "Push is not configured on the server (missing VAPID key).",
+    "pushError": "Could not enable push: {{reason}}",
+    "pushUnsupported": "This browser does not support Web Push (no Service Worker or PushManager) — notifications only work while the app is open.",
+    "pushSubscribeFailed": "The browser could not subscribe to the push service. This happens in ungoogled-chromium and builds without Google keys — Web Push is impossible there, notifications only work while the app is open. You may try again.",
     "version": "v0.1.0 — alpha",
     "aboutDescription": "E2E-encrypted messenger. Zero-knowledge architecture.",
     "diagnostics": {
@@ -129,13 +136,6 @@
       "clear": "Clear log",
       "empty": "(empty — no entries yet)"
     }
-  },
-  "nav": {
-    "appName": "Quant",
-    "chats": "Chats",
-    "newChat": "New chat",
-    "settings": "Settings",
-    "keys": "Keys"
   },
   "chat": {
     "peerNoKeyTitle": "Recipient has no PGP key",

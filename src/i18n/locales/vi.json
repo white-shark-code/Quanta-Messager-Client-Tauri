@@ -56,6 +56,7 @@
     "verifyPassphrase": "Cụm mật khẩu (để xác minh)"
   },
   "nav": {
+    "appName": "Quant",
     "chats": "Các cuộc trò chuyện",
     "newChat": "Cuộc trò chuyện mới",
     "settings": "Cài đặt",
@@ -131,6 +132,12 @@
     "autoLock": "Tự động khóa khi không hoạt động",
     "idleTimeout": "Thời gian chờ không hoạt động (ms)",
     "notifications": "Thông báo",
+    "pushTitle": "Thông báo đẩy",
+    "pushDenied": "Quyền thông báo đã bị từ chối — hãy bật trong cài đặt hệ thống/trình duyệt rồi thử lại.",
+    "pushNoVapid": "Push chưa được cấu hình trên máy chủ (thiếu khóa VAPID).",
+    "pushError": "Không thể bật push: {{reason}}",
+    "pushUnsupported": "Trình duyệt này không hỗ trợ Web Push (thiếu Service Worker hoặc PushManager) — thông báo chỉ hoạt động khi ứng dụng đang mở.",
+    "pushSubscribeFailed": "Trình duyệt không thể đăng ký dịch vụ push. Điều này xảy ra với ungoogled-chromium và các bản dựng thiếu khóa Google — Web Push ở đó là không thể, thông báo chỉ hoạt động khi ứng dụng đang mở. Bạn có thể thử lại.",
     "version": "v0.1.0 — alpha",
     "aboutDescription": "Trình nhắn tin mã hóa E2E. Kiến trúc zero-knowledge."
   },
@@ -143,13 +150,6 @@
     "fileTooLarge": "Tệp quá lớn (tối đa 50 MB)",
     "invalidData": "Dữ liệu hoặc chữ ký không hợp lệ",
     "serverError": "Lỗi máy chủ, vui lòng thử lại sau"
-  },
-  "nav": {
-    "appName": "Quant",
-    "chats": "Các cuộc trò chuyện",
-    "newChat": "Cuộc trò chuyện mới",
-    "settings": "Cài đặt",
-    "keys": "Khóa"
   },
   "setupKey": {
     "title": "Thiết lập khóa mã hóa của bạn",

@@ -41,6 +41,8 @@ import { useSessionStore } from "@/features/auth/sessionStore";
 import { deleteKeystoreForUser } from "@/features/keyring/generate";
 import { fingerprintOf } from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
+import { usePushToggle } from "@/features/push/usePushToggle";
+import { isPushApiAvailable } from "@/features/push/support";
 import { useSettingsStore } from "@/features/settings/settingsStore";
 import { useWsStatusStore } from "@/features/events/wsStatusStore";
 import { useUserPublicKey } from "@/features/users/queries";
@@ -126,6 +128,8 @@ export function SettingsRoute(): JSX.Element {
   const idleTimeoutMs = useSettingsStore((s) => s.idleTimeoutMs);
   const autoLockEnabled = useSettingsStore((s) => s.autoLockEnabled);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
+  const pushEnabled = useSettingsStore((s) => s.pushEnabled);
+  const { pending: pushPending, reason: pushReason, togglePush } = usePushToggle();
 
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [eraseData, setEraseData] = useState(false);
@@ -140,6 +144,25 @@ export function SettingsRoute(): JSX.Element {
   useEffect(() => {
     void refreshDebugLog();
   }, []);
+
+  // Web Push is unavailable when the platform lacks the APIs (old browsers,
+  // some WebViews). ungoogled-chromium and friends DO expose the APIs but
+  // can never reach a vendor push service — that surfaces as
+  // `subscribe-failed` on toggle, with its own explainer below.
+  const pushSupported = isPushApiAvailable();
+
+  // Helper text under the push switch: known B1 reasons get a dedicated
+  // string, anything else is shown raw via `settings.pushError`.
+  let pushReasonText: string | null = null;
+  if (pushReason === "denied") {
+    pushReasonText = t("settings.pushDenied");
+  } else if (pushReason === "no-vapid") {
+    pushReasonText = t("settings.pushNoVapid");
+  } else if (pushReason === "subscribe-failed") {
+    pushReasonText = t("settings.pushSubscribeFailed");
+  } else if (pushReason !== null) {
+    pushReasonText = t("settings.pushError", { reason: pushReason });
+  }
 
   async function handleLogout(): Promise<void> {
     const uid = user?.id;
@@ -280,6 +303,25 @@ export function SettingsRoute(): JSX.Element {
                   onChange={(e) => void setSetting("notificationsEnabled", e.currentTarget.checked)}
                   label={t("settings.notifications")}
                 />
+                {pushSupported ? (
+                  <>
+                    <Switch
+                      checked={pushEnabled}
+                      disabled={pushPending}
+                      onChange={(e) => void togglePush(e.currentTarget.checked)}
+                      label={t("settings.pushTitle")}
+                    />
+                    {pushReasonText !== null && (
+                      <Text size="sm" c="dimmed">
+                        {pushReasonText}
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {t("settings.pushUnsupported")}
+                  </Text>
+                )}
               </Stack>
             </Paper>
           </Stack>

@@ -2,6 +2,9 @@ import { useKeyringStore } from "@/features/keyring/keyringStore";
 import * as keyring from "@/features/keyring/encrypt";
 import { hasKeystore } from "@/infra/tauriBridge";
 import { readKeystore, upsertIndexEntry } from "@/features/secure-store/store";
+import { useSettingsStore } from "@/features/settings/settingsStore";
+import { ensurePushSubscription } from "@/features/push/subscription";
+import { debugLog } from "@/lib/debug";
 
 import { getAccessToken, setAccessToken } from "./accessToken";
 import { bindTokenProvider, useSessionStore } from "./sessionStore";
@@ -60,6 +63,23 @@ export async function unlockWithPassphrase(
   // lock() clearing the holder revokes both paths at once.
   setAccessToken(payload.accessToken);
   bindTokenProvider(() => getAccessToken());
+  // Best-effort Web Push re-subscription (B2): if the user explicitly
+  // enabled push before locking, re-register the subscription now that a
+  // fresh access token is available. Fire-and-forget — a push failure
+  // must never block unlock. `push/subscription` imports no auth modules,
+  // so this edge cannot create an import cycle.
+  if (useSettingsStore.getState().pushEnabled === true) {
+    void (async (): Promise<void> => {
+      try {
+        const res = await ensurePushSubscription();
+        if (!res.subscribed) {
+          void debugLog("push.resubscribe", new Error(`not subscribed: ${res.reason}`));
+        }
+      } catch (err: unknown) {
+        void debugLog("push.resubscribe", err);
+      }
+    })();
+  }
   // Reference upsertIndexEntry in this module so a future call site
   // can wire it up without re-importing (and so `noUnusedLocals`
   // doesn't complain during incremental refactors).

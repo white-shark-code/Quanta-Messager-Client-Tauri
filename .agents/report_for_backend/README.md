@@ -16,6 +16,7 @@
 | 03  | [`03-token-refresh.md`](./03-token-refresh.md)         | 🟡 medium | Нет refresh-токенов → UX-проблема                                     |
 | 04  | [`04-voice-video-ideas.md`](./04-voice-video-ideas.md) | 🟢 low    | Идеи для голосовых/видео (отдельный этап)                             |
 | 05  | [`05-misc-observations.md`](./05-misc-observations.md) | 🟢 low    | Различные мелкие наблюдения                                           |
+| 06  | [`06-background-push.md`](./06-background-push.md)     | 🟡 medium | Фоновые уведомления: Web Push (B), демон/трей (C), FCM/APNs (D)       |
 
 ---
 
