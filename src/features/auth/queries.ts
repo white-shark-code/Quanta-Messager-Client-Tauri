@@ -5,33 +5,28 @@ import { hasKeystore } from "@/infra/tauriBridge";
 import { upsertIndexEntry } from "@/features/secure-store/store";
 
 import * as authApi from "./api";
+import { getAccessToken, setAccessToken } from "./accessToken";
 import { bindTokenProvider, useSessionStore } from "./sessionStore";
 
-let currentToken: string | null = null;
-
-bindTokenProvider(() => currentToken);
+// Single shared provider: apiClient always reads the current token
+// from the accessToken module (login sets it, lock clears it).
+bindTokenProvider(() => getAccessToken());
 
 /**
- * Read the access token captured by the last `useLogin` mutation.
+ * Read the access token captured by the last `useLogin` / unlock.
  *
- * The token lives in a module-private variable (`currentToken`) rather
- * than inside `sessionStore` because it must never be persisted across
- * reloads — once the in-memory store is gone, the user has to log in
- * again. Exposed here so `SetupKeyRoute` / `generate.ts` can persist it
- * into the encrypted keystore right after key creation, before any
- * component unmounts and loses access via `bindTokenProvider`.
+ * Re-exported here for backward compatibility (`generateAndStoreKey`
+ * imports it from `./queries`); the source of truth is
+ * `./accessToken`, which is never persisted across reloads.
  */
-export function getAccessToken(): string | null {
-  return currentToken;
-}
+export { getAccessToken };
 
 export function useLogin() {
   const navigate = useNavigate();
   return useMutation({
     mutationFn: async (req: authApi.LoginRequest): Promise<authApi.MeResponse> => {
       const res = await authApi.login(req);
-      currentToken = res.access_token;
-      bindTokenProvider(() => currentToken);
+      setAccessToken(res.access_token);
       return authApi.me();
     },
     onSuccess: async (user) => {

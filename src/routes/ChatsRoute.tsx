@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Button, Center, Group, Loader, Stack, Text } from "@mantine/core";
 
 import { usePrivateChats, useGroupChats } from "@/features/chats/queries";
-import { useEventsPolling } from "@/features/events/polling";
+import { useEvents } from "@/features/events/useEvents";
 import { ChatItem } from "@/features/chats/components/ChatItem";
 import { EmptyChatsState } from "@/features/chats/components/EmptyChatsState";
 import { toUserMessage } from "@/infra/error";
@@ -14,7 +14,7 @@ export function ChatsRoute(): JSX.Element {
   const { t } = useTranslation();
   const privateChats = usePrivateChats();
   const groupChats = useGroupChats();
-  const { data: events } = useEventsPolling();
+  const { data: events } = useEvents();
 
   const allChats = useMemo<AnyChat[]>(() => {
     const priv = privateChats.data?.pages.flatMap((p) => p.items) ?? [];

@@ -75,6 +75,9 @@
       }
     }
   },
+  "events": {
+    "newMessage": "Новое сообщение"
+  },
   "messages": {
     "decrypting": "Расшифровка…",
     "locked": "🔒 Заблокировано",
@@ -106,6 +109,11 @@
     "theme": "Тема",
     "currentTheme": "Текущая: {{theme}}",
     "pollingInterval": "Интервал опроса (мс)",
+    "pollingIntervalFallback": "Интервал опроса (мс, fallback для WebSocket)",
+    "realtimeMode": "Режим realtime",
+    "realtimeWs": "WebSocket",
+    "realtimePolling": "Polling",
+    "wsStatus": "Статус WebSocket: {{status}}",
     "autoLock": "Блокировка при бездействии",
     "idleTimeout": "Таймаут бездействия (мс)",
     "logoutConfirmText": "Вы сможете войти снова с вашей парольной фразой. Поставьте галочку ниже, чтобы также удалить keystore с этого устройства.",

@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEventsPolling } from "./polling";
+import { useEvents } from "./useEvents";
 import { markDialogRead, markGroupRead } from "./api";
 
 export function useMarkAsRead(chatId: string, kind: "private" | "group" = "private") {
   const queryClient = useQueryClient();
-  const { data: events } = useEventsPolling();
+  const { data: events } = useEvents();
   const markedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {

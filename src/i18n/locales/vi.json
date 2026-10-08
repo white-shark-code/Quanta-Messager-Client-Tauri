@@ -94,6 +94,9 @@
       }
     }
   },
+  "events": {
+    "newMessage": "Tin nhắn mới"
+  },
   "messages": {
     "send": "Gửi",
     "typeMessage": "Nhập tin nhắn…",
@@ -120,6 +123,11 @@
     "theme": "Chủ đề",
     "currentTheme": "Hiện tại: {{theme}}",
     "pollingInterval": "Khoảng thời gian thăm dò (ms)",
+    "pollingIntervalFallback": "Khoảng thời gian thăm dò (ms, dự phòng cho WebSocket)",
+    "realtimeMode": "Chế độ realtime",
+    "realtimeWs": "WebSocket",
+    "realtimePolling": "Polling",
+    "wsStatus": "Trạng thái WebSocket: {{status}}",
     "autoLock": "Tự động khóa khi không hoạt động",
     "idleTimeout": "Thời gian chờ không hoạt động (ms)",
     "notifications": "Thông báo",

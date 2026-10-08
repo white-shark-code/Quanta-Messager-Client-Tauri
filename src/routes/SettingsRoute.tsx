@@ -42,6 +42,7 @@ import { deleteKeystoreForUser } from "@/features/keyring/generate";
 import { fingerprintOf } from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import { useSettingsStore } from "@/features/settings/settingsStore";
+import { useWsStatusStore } from "@/features/events/wsStatusStore";
 import { useUserPublicKey } from "@/features/users/queries";
 import { clearDebugLog, getDebugLog, getDebugLogLocation } from "@/lib/debug";
 import { ColorSchemeToggle } from "@/ui/components/ColorSchemeToggle";
@@ -120,6 +121,8 @@ export function SettingsRoute(): JSX.Element {
   const setSetting = useSettingsStore((s) => s.set);
   const language = useSettingsStore((s) => s.language);
   const pollingIntervalMs = useSettingsStore((s) => s.pollingIntervalMs);
+  const realtimeMode = useSettingsStore((s) => s.realtimeMode);
+  const wsStatus = useWsStatusStore((s) => s.status);
   const idleTimeoutMs = useSettingsStore((s) => s.idleTimeoutMs);
   const autoLockEnabled = useSettingsStore((s) => s.autoLockEnabled);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
@@ -221,7 +224,27 @@ export function SettingsRoute(): JSX.Element {
             </Paper>
             <Paper withBorder p="md">
               <Stack>
-                <Text fw={500}>{t("settings.pollingInterval")}</Text>
+                <Text fw={500}>{t("settings.realtimeMode")}</Text>
+                <SegmentedControl
+                  value={realtimeMode}
+                  onChange={(v) => void setSetting("realtimeMode", v as "ws" | "polling")}
+                  data={[
+                    { value: "ws", label: t("settings.realtimeWs") },
+                    { value: "polling", label: t("settings.realtimePolling") },
+                  ]}
+                />
+                <Text size="sm" c="dimmed">
+                  {t("settings.wsStatus", { status: wsStatus })}
+                </Text>
+              </Stack>
+            </Paper>
+            <Paper withBorder p="md">
+              <Stack>
+                <Text fw={500}>
+                  {realtimeMode === "ws"
+                    ? t("settings.pollingIntervalFallback")
+                    : t("settings.pollingInterval")}
+                </Text>
                 <NumberInput
                   value={pollingIntervalMs}
                   onChange={(v) =>

@@ -1,10 +1,10 @@
-import { configureClient } from "@/infra/apiClient";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
 import * as keyring from "@/features/keyring/encrypt";
 import { hasKeystore } from "@/infra/tauriBridge";
 import { readKeystore, upsertIndexEntry } from "@/features/secure-store/store";
 
-import { useSessionStore } from "./sessionStore";
+import { getAccessToken, setAccessToken } from "./accessToken";
+import { bindTokenProvider, useSessionStore } from "./sessionStore";
 
 /**
  * Unlock an existing keystore with a passphrase.
@@ -54,10 +54,12 @@ export async function unlockWithPassphrase(
   useSessionStore.getState().setUnlocked(true);
   useSessionStore.getState().setFingerprint(payload.fingerprint);
 
-  configureClient({
-    tokenProvider: () => payload.accessToken,
-    onUnauthorized: () => useSessionStore.getState().lock(),
-  });
+  // Publish the keystore bearer into the shared in-memory holder and
+  // (re)point apiClient at it via the single shared provider shape.
+  // The same `() => getAccessToken()` getter is bound at login, so
+  // lock() clearing the holder revokes both paths at once.
+  setAccessToken(payload.accessToken);
+  bindTokenProvider(() => getAccessToken());
   // Reference upsertIndexEntry in this module so a future call site
   // can wire it up without re-importing (and so `noUnusedLocals`
   // doesn't complain during incremental refactors).

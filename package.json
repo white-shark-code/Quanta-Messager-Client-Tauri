@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:remote": "bash scripts/test-remote.sh"
+    "test:remote": "bash scripts/test-remote.sh",
+    "test:ws-live": "node scripts/test-ws-live.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9",

@@ -4,6 +4,8 @@ import type { MantineColorScheme } from "@mantine/core";
 
 export type ColorScheme = MantineColorScheme;
 
+export type RealtimeMode = "ws" | "polling";
+
 export interface Settings {
   theme: ColorScheme;
   pollingIntervalMs: number;
@@ -12,6 +14,7 @@ export interface Settings {
   language: "en" | "ru" | "vi";
   apiBaseUrl: string;
   notificationsEnabled: boolean;
+  realtimeMode: RealtimeMode;
 }
 
 export interface SettingsState extends Settings {
@@ -29,6 +32,7 @@ const SETTINGS_KEYS = [
   "language",
   "apiBaseUrl",
   "notificationsEnabled",
+  "realtimeMode",
 ] as const satisfies readonly (keyof Settings)[];
 
 const viteApiUrl = (import.meta.env as { VITE_API_URL?: unknown }).VITE_API_URL;
@@ -42,6 +46,7 @@ const defaults: Settings = {
   apiBaseUrl:
     typeof viteApiUrl === "string" && viteApiUrl.length > 0 ? viteApiUrl : "http://localhost:8000",
   notificationsEnabled: true,
+  realtimeMode: "ws",
 };
 
 const tauriStore = new LazyStore("settings.json");
@@ -52,26 +57,55 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   hydrate: async () => {
     if (get().hydrated) return;
-    await tauriStore.init();
+    // Browser dev (vite) has no Tauri store backend — persistence is
+    // best-effort there. In-memory defaults still apply so the UI works.
+    try {
+      await tauriStore.init();
+    } catch {
+      set({ ...defaults, hydrated: true });
+      return;
+    }
     const loaded: Record<string, unknown> = {};
     for (const key of SETTINGS_KEYS) {
-      const value = await tauriStore.get(key);
-      if (value !== undefined) {
-        loaded[key] = value;
+      try {
+        const value = await tauriStore.get(key);
+        if (value !== undefined) {
+          loaded[key] = value;
+        }
+      } catch {
+        // ignore per-key read failures (no backend in browser)
       }
+    }
+    // Migration / validation: old settings.json files have no
+    // `realtimeMode` key (falls back to default via spread below);
+    // a corrupted value is dropped so the default ("ws") wins.
+    if (loaded.realtimeMode !== "ws" && loaded.realtimeMode !== "polling") {
+      delete loaded.realtimeMode;
     }
     set({ ...defaults, ...loaded, hydrated: true });
   },
 
   set: async (key, value) => {
     set({ [key]: value } as Partial<SettingsState>);
-    await tauriStore.set(key, value);
-    await tauriStore.save();
+    // Persist best-effort: Tauri store backend is absent in plain
+    // browser dev (vite), where save() rejects. In-memory state above
+    // is the source of truth; a failed persist must not surface as
+    // Uncaught (in promise) in the console.
+    try {
+      await tauriStore.set(key, value);
+      await tauriStore.save();
+    } catch {
+      // ignore — next launch falls back to defaults for missing keys
+    }
   },
 
   reset: async () => {
-    await tauriStore.clear();
     set({ ...defaults });
-    await tauriStore.save();
+    try {
+      await tauriStore.clear();
+      await tauriStore.save();
+    } catch {
+      // ignore — see set() above
+    }
   },
 }));

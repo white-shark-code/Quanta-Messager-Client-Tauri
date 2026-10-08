@@ -75,6 +75,9 @@
       }
     }
   },
+  "events": {
+    "newMessage": "New message"
+  },
   "messages": {
     "decrypting": "Decrypting…",
     "locked": "🔒 Locked",
@@ -106,6 +109,11 @@
     "theme": "Theme",
     "currentTheme": "Current: {{theme}}",
     "pollingInterval": "Polling interval (ms)",
+    "pollingIntervalFallback": "Polling interval (ms, fallback for WebSocket)",
+    "realtimeMode": "Realtime updates",
+    "realtimeWs": "WebSocket",
+    "realtimePolling": "Polling",
+    "wsStatus": "WebSocket status: {{status}}",
     "autoLock": "Auto-lock on idle",
     "idleTimeout": "Idle timeout (ms)",
     "logoutConfirmText": "You can log back in with your passphrase. Check the box below to also remove your keystore from this device.",

@@ -4,7 +4,12 @@ import { IconKey, IconMessage, IconPlus, IconSettings } from "@tabler/icons-reac
 import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation } from "react-router-dom";
 
+import { useEventsSocket } from "@/features/events/useEventsSocket";
+
 export function AppShellRoute() {
+  // Session-scoped realtime socket (T4). No-op unless unlocked + ws mode.
+  // AppShellRoute renders only under RequireAuth, so no extra guard needed.
+  useEventsSocket();
   const [opened, { toggle }] = useDisclosure();
   const location = useLocation();
   const { t } = useTranslation();

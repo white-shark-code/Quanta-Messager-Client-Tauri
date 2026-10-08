@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { configureClient } from "@/infra/apiClient";
 
+import { clearAccessToken } from "./accessToken";
 import type { User } from "./model";
 
 export interface SessionState {
@@ -22,8 +23,14 @@ export const useSessionStore = create<SessionState>((set) => ({
   setUser: (user) => set({ user }),
   setUnlocked: (isUnlocked) => set({ isUnlocked }),
   setFingerprint: (fingerprint) => set({ fingerprint }),
-  lock: () => set({ user: null, isUnlocked: false, fingerprint: null }),
-  onUnauthorized: () => set({ user: null, isUnlocked: false, fingerprint: null }),
+  lock: () => {
+    clearAccessToken();
+    set({ user: null, isUnlocked: false, fingerprint: null });
+  },
+  onUnauthorized: () => {
+    clearAccessToken();
+    set({ user: null, isUnlocked: false, fingerprint: null });
+  },
 }));
 
 let tokenProvider: () => string | null = () => null;
@@ -37,3 +44,21 @@ export function bindTokenProvider(getToken: () => string | null): void {
 }
 
 bindTokenProvider(() => null);
+
+/**
+ * Subscribe to lock transitions (`isUnlocked: true → false`) for
+ * session-scoped resources such as the future WS events socket.
+ *
+ * `useEventsSocket` should `onLocked(() => socket.close())` on mount
+ * (and reconnect on unlock) instead of polling. Covers `lock()`,
+ * `onUnauthorized()` and any other path that flips `isUnlocked` off.
+ *
+ * @returns Unsubscribe function (same contract as `store.subscribe`).
+ */
+export function onLocked(listener: () => void): () => void {
+  return useSessionStore.subscribe((s, prev) => {
+    if (prev.isUnlocked && !s.isUnlocked) {
+      listener();
+    }
+  });
+}

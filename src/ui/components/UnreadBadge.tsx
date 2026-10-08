@@ -1,13 +1,13 @@
 import { Badge } from "@mantine/core";
 
-import { useEventsPolling } from "@/features/events/polling";
+import { useEvents } from "@/features/events/useEvents";
 
 interface UnreadBadgeProps {
   chatId: string;
 }
 
 export function UnreadBadge({ chatId }: UnreadBadgeProps) {
-  const { data: events } = useEventsPolling();
+  const { data: events } = useEvents();
 
   if (!events) return null;
 
@@ -25,7 +25,7 @@ export function UnreadBadge({ chatId }: UnreadBadgeProps) {
 }
 
 export function GlobalUnreadCount() {
-  const { data } = useEventsPolling();
+  const { data } = useEvents();
 
   const total =
     (data?.dialog ?? []).reduce((sum, event) => sum + event.count, 0) +
