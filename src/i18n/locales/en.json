@@ -87,6 +87,11 @@
     "retry": "Retry",
     "verified": "Signature verified",
     "invalidSignature": "Signature invalid",
+    "reply": "Reply",
+    "replyCancel": "Cancel reply",
+    "repliesCount": "{{count}} replies",
+    "viewThread": "View thread",
+    "originalUnavailable": "Original message unavailable",
     "composer": {
       "unlockFirst": "Unlock to send messages",
       "unlockButton": "Unlock",

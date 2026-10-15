@@ -39,6 +39,8 @@ import { debugLog } from "@/lib/debug";
 
 import * as messagesApi from "./api";
 import type { CreateMessageRequest, DialogMessage, ListItems } from "./model";
+import { getDecrypted } from "./queries";
+import { encodeReplyBody, truncatePreview, type ReplyRef } from "./replyEnvelope";
 
 export type ChatKind = "private" | "group";
 
@@ -53,6 +55,14 @@ export interface SendMessageInput {
    */
   chatId: string;
   text: string;
+  /**
+   * When set, the message is sent as a reply: the parent's preview +
+   * sender are resolved from the local cache and wrapped into a reply
+   * envelope (see `replyEnvelope`) before encryption. Never fails the
+   * send when the parent isn't decrypted — the preview just falls back
+   * to `""`. Replying to an unsent (pending/failed) row throws.
+   */
+  replyTo?: { id: string };
 }
 
 /**
@@ -72,6 +82,8 @@ export interface PendingMessage extends DialogMessage {
   /** Epoch ms; mirrors `creation_datetime` for cheap sorting. */
   createdAt: number;
   readonly optimistic: true;
+  /** Reply reference for optimistic reply rows; `null`/absent = plain message. */
+  replyPreview?: ReplyRef | null;
 }
 
 export type MessagesCache = InfiniteData<ListItems<DialogMessage>>;
@@ -123,6 +135,7 @@ function makePending(
   ownerId: string,
   text: string,
   status: MessageStatus = "pending",
+  replyPreview?: ReplyRef | null,
 ): PendingMessage {
   const now = Date.now();
   return {
@@ -136,6 +149,7 @@ function makePending(
     text,
     createdAt: now,
     optimistic: true,
+    ...(replyPreview !== undefined ? { replyPreview } : {}),
   };
 }
 
@@ -227,6 +241,46 @@ async function resolveRecipients(
 type SendFn = (chatId: string, req: CreateMessageRequest) => Promise<DialogMessage>;
 
 /**
+ * Resolve the reply reference for `replyToId` from the local list cache
+ * plus the decryption cache.
+ *
+ * - Parent sender = parent row `owner_id`, fallback `"unknown"` when the
+ *   parent row isn't in the cache.
+ * - Parent preview = decrypted parent text when available, else `""`
+ *   (never fails the send).
+ * - Throws `Cannot reply to an unsent message` when the parent row is an
+ *   optimistic pending/failed row (its ciphertext doesn't exist yet).
+ *
+ * Exported for tests; used synchronously by both `mutationFn` and
+ * `onMutate` so the envelope and the optimistic row agree.
+ */
+export function resolveReplyRef(
+  queryClient: QueryClient,
+  kind: ChatKind,
+  chatId: string,
+  replyToId: string,
+): ReplyRef {
+  const cache = queryClient.getQueryData<MessagesCache>(messagesQueryKey(kind, chatId));
+  const parent =
+    cache?.pages.flatMap((page) => page.items).find((item) => item.id === replyToId) ?? null;
+  if (parent !== null && isPendingMessage(parent)) {
+    throw new Error("Cannot reply to an unsent message");
+  }
+  const sender = parent?.owner_id ?? "unknown";
+  const preview = truncatePreview(getDecrypted(replyToId)?.text ?? "");
+  return { id: replyToId, sender, preview };
+}
+
+/**
+ * Build the pre-encryption body: a reply envelope when `reply` is set,
+ * raw `text` otherwise. Exported for tests.
+ */
+export function buildSendBody(text: string, reply: ReplyRef | null): string {
+  if (reply === null) return text;
+  return encodeReplyBody(text, { id: reply.id, sender: reply.sender, preview: reply.preview });
+}
+
+/**
  * Shared implementation behind {@link useSendPrivateMessage} and
  * {@link useSendGroupMessage}: identical cache handling, different
  * transport function and cache namespace.
@@ -252,7 +306,7 @@ function useSendMessage(
   return useMutation<DialogMessage, Error, SendMessageInput, SendContext>({
     mutationKey: ["messages", kind, chatId, "send"],
 
-    mutationFn: async ({ text }: SendMessageInput) => {
+    mutationFn: async ({ text, replyTo }: SendMessageInput) => {
       if (privateKey === null) {
         throw new Error("Keys not loaded");
       }
@@ -262,6 +316,13 @@ function useSendMessage(
       if (text.trim().length === 0) {
         throw new Error("Cannot send an empty message");
       }
+
+      // Resolve the reply ref synchronously from the caches (throws on
+      // pending parent). ONE envelope string feeds both ciphertexts so
+      // peer and self copies decrypt to the same reply.
+      const reply: ReplyRef | null =
+        replyTo !== undefined ? resolveReplyRef(queryClient, kind, chatId, replyTo.id) : null;
+      const body = buildSendBody(text, reply);
 
       const recipients = await resolveRecipients(
         publicKey,
@@ -292,8 +353,8 @@ function useSendMessage(
       // devices sharing the keypair). The backend stores both and
       // returns each viewer the copy they can decrypt.
       const [main, selfCopy] = await Promise.all([
-        keyring.encryptText(text, recipients, privateKey),
-        keyring.encryptText(text, [publicKey], privateKey),
+        keyring.encryptText(body, recipients, privateKey),
+        keyring.encryptText(body, [publicKey], privateKey),
       ]);
 
       return send(chatId, {
@@ -304,12 +365,17 @@ function useSendMessage(
       });
     },
 
-    onMutate: async ({ text }) => {
+    onMutate: async ({ text, replyTo }) => {
       // A refetch landing mid-flight would clobber the optimistic row.
       await queryClient.cancelQueries({ queryKey });
 
       const previous = queryClient.getQueryData<MessagesCache>(queryKey);
-      const pending = makePending(chatId, user?.id ?? "me", text);
+      // Resolve the reply preview here too so the optimistic row renders
+      // the quote instantly; same lookup as `mutationFn` (throws on
+      // pending parent, which aborts the send before `mutationFn` runs).
+      const replyPreview: ReplyRef | null =
+        replyTo !== undefined ? resolveReplyRef(queryClient, kind, chatId, replyTo.id) : null;
+      const pending = makePending(chatId, user?.id ?? "me", text, "pending", replyPreview);
 
       if (previous !== undefined) {
         queryClient.setQueryData<MessagesCache>(queryKey, insertPending(previous, pending));
@@ -422,7 +488,13 @@ export function useRetryMessage(chatId: string, kind: ChatKind = "private"): Ret
     }
 
     updateCache(queryClient, queryKey, (current) => dropMessage(current, messageId));
-    mutation.mutate({ chatId, text: failed.text });
+    mutation.mutate({
+      chatId,
+      text: failed.text,
+      ...(failed.replyPreview !== undefined && failed.replyPreview !== null
+        ? { replyTo: { id: failed.replyPreview.id } }
+        : {}),
+    });
   };
 
   return {

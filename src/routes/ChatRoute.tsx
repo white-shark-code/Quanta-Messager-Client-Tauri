@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Center, Group, Loader, Stack } from "@mantine/core";
 import { IconAlertCircle, IconArrowLeft } from "@tabler/icons-react";
@@ -12,8 +12,11 @@ import { useMarkAsRead } from "@/features/events/useMarkAsRead";
 import { seedCache } from "@/features/dialog-store/store";
 import { Composer } from "@/features/messages/components/Composer";
 import { MessageBubble } from "@/features/messages/components/MessageBubble";
+import { ThreadPanel } from "@/features/messages/components/ThreadPanel";
+import { THREAD_OPEN_EVENT } from "@/features/messages/jumpToMessage";
 import type { DialogMessage, ListItems } from "@/features/messages/model";
 import { usePrivateMessages } from "@/features/messages/queries";
+import { useReplyCounts } from "@/features/messages/useReplyCounts";
 import { ApiError, toUserMessage } from "@/infra/error";
 import { useUserPublicKey } from "@/features/users/queries";
 
@@ -74,6 +77,22 @@ export function ChatRoute(): JSX.Element | null {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
+  // Reply-thread panel (Track D): opened by Track C's reply-quote click
+  // via `openThread(messageId)` (`thread:open` window event).
+  const [threadId, setThreadId] = useState<string | null>(null);
+  useEffect(() => {
+    const onThreadOpen = (e: Event): void => {
+      const messageId = (e as CustomEvent<{ messageId: string }>).detail?.messageId;
+      if (typeof messageId === "string" && messageId.length > 0) {
+        setThreadId(messageId);
+      }
+    };
+    window.addEventListener(THREAD_OPEN_EVENT, onThreadOpen);
+    return () => {
+      window.removeEventListener(THREAD_OPEN_EVENT, onThreadOpen);
+    };
+  }, []);
+
   useMarkAsRead(chatId ?? "", kind);
 
   // Сидим React Query-кеш из шифрованного локального файла ДО того,
@@ -100,6 +119,10 @@ export function ChatRoute(): JSX.Element | null {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Reply counts for the "N replies" badges, computed once per list (not
+  // per bubble). Must stay above the early returns (stable hook order).
+  const replyCounts = useReplyCounts(messages?.items);
 
   if (!chatId) return null;
 
@@ -158,7 +181,12 @@ export function ChatRoute(): JSX.Element | null {
           </Button>
         )}
         {allMessages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} chatId={chatId} />
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            chatId={chatId}
+            replyCount={replyCounts[msg.id] ?? 0}
+          />
         ))}
         <div ref={messagesEndRef} />
       </Stack>
@@ -200,6 +228,13 @@ export function ChatRoute(): JSX.Element | null {
         {...(composerDisabledReason !== undefined
           ? { disabledReason: composerDisabledReason }
           : {})}
+      />
+
+      <ThreadPanel
+        chatId={chatId}
+        kind={kind}
+        openedId={threadId}
+        onClose={() => setThreadId(null)}
       />
     </Stack>
   );

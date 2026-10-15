@@ -87,6 +87,11 @@
     "retry": "Повторить",
     "verified": "Подпись проверена",
     "invalidSignature": "Подпись недействительна",
+    "reply": "Ответить",
+    "replyCancel": "Отменить ответ",
+    "repliesCount": "{{count}} ответов",
+    "viewThread": "Смотреть ветку",
+    "originalUnavailable": "Исходное сообщение недоступно",
     "composer": {
       "unlockFirst": "Разблокируйте, чтобы отправлять сообщения",
       "unlockButton": "Разблокировать",

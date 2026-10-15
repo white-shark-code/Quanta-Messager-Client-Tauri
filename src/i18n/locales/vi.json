@@ -109,6 +109,11 @@
     "unlockToSend": "Mở khóa để gửi tin nhắn",
     "verified": "Đã xác minh chữ ký",
     "invalidSignature": "Chữ ký không hợp lệ",
+    "reply": "Trả lời",
+    "replyCancel": "Hủy trả lời",
+    "repliesCount": "{{count}} trả lời",
+    "viewThread": "Xem chuỗi",
+    "originalUnavailable": "Tin nhắn gốc không khả dụng",
     "composer": {
       "unlockFirst": "Mở khóa để gửi tin nhắn",
       "placeholder": "Nhập tin nhắn…",

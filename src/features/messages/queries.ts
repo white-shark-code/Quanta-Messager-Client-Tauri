@@ -69,6 +69,7 @@ import { useSessionStore } from "@/features/auth/sessionStore";
 
 import * as messagesApi from "./api";
 import type { DialogMessage, ListItems } from "./model";
+import { decodeBody, type ReplyRef } from "./replyEnvelope";
 
 /* ------------------------------------------------------------------ *
  * Decryption cache (in-memory, not React-Query-managed)
@@ -78,6 +79,7 @@ import type { DialogMessage, ListItems } from "./model";
 export interface DecryptedMessage {
   text: string;
   verified: boolean;
+  reply: ReplyRef | null;
 }
 
 /**
@@ -174,7 +176,17 @@ async function tryDecrypt(
   // payloads — both surface as `null` so the UI renders a placeholder
   // rather than crashing the list, with the failure in the debug log.
   try {
-    return await keyring.decryptText(encrypted, signature, senderKey, privateKey);
+    const { text, verified } = await keyring.decryptText(
+      encrypted,
+      signature,
+      senderKey,
+      privateKey,
+    );
+    // Replies arrive as a JSON envelope inside the ciphertext — split it
+    // back into display text + reply ref. Plain messages (raw text,
+    // non-JSON, invalid shape) fall back to `{ text: plaintext, reply: null }`.
+    const parsed = decodeBody(text);
+    return { text: parsed.text, verified, reply: parsed.reply };
   } catch (e) {
     void debugLog("Decrypt message", e, {
       messageId: msg.id,

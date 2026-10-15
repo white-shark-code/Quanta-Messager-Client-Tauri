@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ActionIcon, Alert, Button, Group, Paper, Textarea, Tooltip } from "@mantine/core";
-import { IconAlertCircle, IconLock, IconSend, IconSettings } from "@tabler/icons-react";
+import { ActionIcon, Alert, Button, Group, Paper, Text, Textarea, Tooltip } from "@mantine/core";
+import { IconAlertCircle, IconLock, IconSend, IconSettings, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -11,6 +11,7 @@ import { toUserMessage } from "@/infra/error";
 
 import { useComposerStore } from "../composerStore";
 import { useSendGroupMessage, useSendPrivateMessage } from "../mutations";
+import { useReplyStore } from "../replyStore";
 
 export interface ComposerProps {
   chatId: string;
@@ -49,6 +50,8 @@ export function Composer({
   const sendPrivate = useSendPrivateMessage(chatId, peerPublicKeyArmored);
   const sendGroup = useSendGroupMessage(chatId, peerPublicKeyArmored);
   const send = kind === "private" ? sendPrivate : sendGroup;
+  const reply = useReplyStore((s) => s.replies[chatId]);
+  const clearReply = useReplyStore((s) => s.clearReply);
   const hasKeys = useKeyringStore((s) => s.privateKey !== null);
   const currentUserId = useSessionStore((s) => s.user?.id);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -77,8 +80,13 @@ export function Composer({
     setSendError(null);
     const currentText = text;
     try {
-      await send.mutateAsync({ chatId, text: currentText });
+      await send.mutateAsync({
+        chatId,
+        text: currentText,
+        ...(reply !== undefined ? { replyTo: { id: reply.id } } : {}),
+      });
       clearDraft(chatId);
+      clearReply(chatId);
       textareaRef.current?.focus();
     } catch (e) {
       // Keep the message visible until the user types or dismisses it.
@@ -125,6 +133,32 @@ export function Composer({
 
   return (
     <Paper p="sm" withBorder>
+      {reply !== undefined && (
+        <Paper withBorder p="xs" mb="xs">
+          <Group justify="space-between" wrap="nowrap" align="flex-start">
+            <div>
+              <Text size="xs" c="dimmed">
+                {t("messages.reply", { defaultValue: "Reply" })} · {reply.sender.slice(0, 8)}
+              </Text>
+              <Text size="sm" lineClamp={2}>
+                {reply.preview.length > 0
+                  ? reply.preview
+                  : t("messages.originalUnavailable", {
+                      defaultValue: "Original message unavailable",
+                    })}
+              </Text>
+            </div>
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              aria-label={t("messages.replyCancel", { defaultValue: "Cancel reply" })}
+              onClick={() => clearReply(chatId)}
+            >
+              <IconX size={14} />
+            </ActionIcon>
+          </Group>
+        </Paper>
+      )}
       <Group align="flex-end" gap="xs">
         <Textarea
           ref={textareaRef}
