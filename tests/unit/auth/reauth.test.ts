@@ -5,7 +5,7 @@ const {
   loginMock,
   meMock,
   updateKeystoreTokenMock,
-  configureClientMock,
+  setAccessTokenMock,
   setUserSpy,
 } = vi.hoisted(() => {
   return {
@@ -13,7 +13,7 @@ const {
     loginMock: vi.fn(),
     meMock: vi.fn(),
     updateKeystoreTokenMock: vi.fn(),
-    configureClientMock: vi.fn(),
+    setAccessTokenMock: vi.fn(),
     setUserSpy: vi.fn(),
   };
 });
@@ -42,9 +42,11 @@ vi.mock("@/features/secure-store/store", () => {
   };
 });
 
-vi.mock("@/infra/apiClient", () => {
+vi.mock("@/features/auth/accessToken", () => {
   return {
-    configureClient: (...args: unknown[]): unknown => configureClientMock(...args) as unknown,
+    setAccessToken: (...args: unknown[]): unknown => setAccessTokenMock(...args) as unknown,
+    getAccessToken: () => null,
+    clearAccessToken: () => undefined,
   };
 });
 
@@ -133,7 +135,7 @@ describe("auth/reauth", () => {
     loginMock.mockReset();
     meMock.mockReset();
     updateKeystoreTokenMock.mockReset();
-    configureClientMock.mockReset();
+    setAccessTokenMock.mockReset();
     setUserSpy.mockReset();
 
     unlockWithPassphraseMock.mockResolvedValue(undefined);
@@ -151,7 +153,7 @@ describe("auth/reauth", () => {
     vi.clearAllMocks();
   });
 
-  it("calls unlock → login → updateKeystoreToken → configureClient → me → setUser in order", async () => {
+  it("calls unlock → login → updateKeystoreToken → setAccessToken → me → setUser in order", async () => {
     const callOrder: string[] = [];
     unlockWithPassphraseMock.mockImplementation(() => {
       callOrder.push("unlock");
@@ -165,8 +167,8 @@ describe("auth/reauth", () => {
       callOrder.push("updateKeystoreToken");
       return Promise.resolve(FAKE_KEYSTORE);
     });
-    configureClientMock.mockImplementation(() => {
-      callOrder.push("configureClient");
+    setAccessTokenMock.mockImplementation(() => {
+      callOrder.push("setAccessToken");
     });
     meMock.mockImplementation(() => {
       callOrder.push("me");
@@ -186,7 +188,7 @@ describe("auth/reauth", () => {
       "unlock",
       "login",
       "updateKeystoreToken",
-      "configureClient",
+      "setAccessToken",
       "me",
       "setUser",
     ]);
@@ -228,22 +230,18 @@ describe("auth/reauth", () => {
     expect(updateKeystoreTokenMock).toHaveBeenCalledWith(USER_ID, "k", "fresh-access-token");
   });
 
-  it("happy path: configureClient receives a tokenProvider returning the fresh access_token", async () => {
+  it("happy path: publishes the fresh access_token into the shared holder", async () => {
     await reauth({
       userId: USER_ID,
       keystorePassphrase: "k",
       serverPassword: "p",
     });
 
-    expect(configureClientMock).toHaveBeenCalledTimes(1);
-    const arg = configureClientMock.mock.calls[0]?.[0] as {
-      tokenProvider: () => string | null;
-      onUnauthorized: () => void;
-    };
-
-    expect(typeof arg.tokenProvider).toBe("function");
-    expect(arg.tokenProvider()).toBe("fresh-access-token");
-    expect(typeof arg.onUnauthorized).toBe("function");
+    // The shared holder (read by apiClient via bindTokenProvider) must
+    // receive the fresh bearer — a per-token closure would keep sending
+    // the old bearer after a soft lock.
+    expect(setAccessTokenMock).toHaveBeenCalledTimes(1);
+    expect(setAccessTokenMock).toHaveBeenCalledWith("fresh-access-token");
   });
 
   it("happy path: hits /users/me exactly once after the token is configured", async () => {
@@ -304,7 +302,7 @@ describe("auth/reauth", () => {
     ).rejects.toThrow("Invalid credentials");
 
     expect(updateKeystoreTokenMock).not.toHaveBeenCalled();
-    expect(configureClientMock).not.toHaveBeenCalled();
+    expect(setAccessTokenMock).not.toHaveBeenCalled();
     expect(meMock).not.toHaveBeenCalled();
     expect(setUserSpy).not.toHaveBeenCalled();
   });
@@ -336,8 +334,35 @@ describe("auth/reauth", () => {
     ).rejects.toThrow("Server error");
 
     expect(updateKeystoreTokenMock).toHaveBeenCalledTimes(1);
-    expect(configureClientMock).toHaveBeenCalledTimes(1);
+    expect(setAccessTokenMock).toHaveBeenCalledTimes(1);
     expect(setUserSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses the explicit email arg when sessionStore has no user", async () => {
+    sessionState.user = null;
+
+    await reauth({
+      userId: USER_ID,
+      email: "index@example.com",
+      keystorePassphrase: "k",
+      serverPassword: "p",
+    });
+
+    expect(loginMock).toHaveBeenCalledTimes(1);
+    expect(loginMock).toHaveBeenCalledWith({ username: "index@example.com", password: "p" });
+    expect(updateKeystoreTokenMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("explicit email overrides the session email", async () => {
+    await reauth({
+      userId: USER_ID,
+      email: "other@example.com",
+      keystorePassphrase: "k",
+      serverPassword: "p",
+    });
+
+    expect(loginMock).toHaveBeenCalledTimes(1);
+    expect(loginMock).toHaveBeenCalledWith({ username: "other@example.com", password: "p" });
   });
 
   it("throws 'no user in session' when sessionStore has no user — never calls login", async () => {
@@ -354,7 +379,7 @@ describe("auth/reauth", () => {
     expect(unlockWithPassphraseMock).not.toHaveBeenCalled();
     expect(loginMock).not.toHaveBeenCalled();
     expect(updateKeystoreTokenMock).not.toHaveBeenCalled();
-    expect(configureClientMock).not.toHaveBeenCalled();
+    expect(setAccessTokenMock).not.toHaveBeenCalled();
     expect(meMock).not.toHaveBeenCalled();
   });
 });

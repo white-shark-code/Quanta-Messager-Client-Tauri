@@ -12,7 +12,7 @@
  * already read the keystore file; the passphrase is the second factor.
  */
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Button,
@@ -32,9 +32,44 @@ import { hasKeystore } from "@/infra/tauriBridge";
 import { unlockWithPassphrase } from "@/features/auth/unlock";
 import { toUserMessage } from "@/infra/error";
 
+/**
+ * Extract a safe post-unlock target from `location.state`.
+ * Accepts `state.from` either as a plain string or as a location-like
+ * `{ pathname }`. Only same-origin absolute paths are allowed, and
+ * auth endpoints (`/login`, `/unlock`) plus bare `/` fall back to
+ * `/chats` to avoid redirect loops.
+ */
+function resolvePostUnlockTarget(state: unknown): string {
+  let pathname: unknown;
+  if (typeof state === "object" && state !== null && "from" in state) {
+    const from = (state as { from?: unknown }).from;
+    if (typeof from === "string") {
+      pathname = from;
+    } else if (typeof from === "object" && from !== null && "pathname" in from) {
+      pathname = (from as { pathname?: unknown }).pathname;
+    }
+  }
+  if (typeof pathname !== "string" || !pathname.startsWith("/")) {
+    return "/chats";
+  }
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname.startsWith("/login/") ||
+    pathname.startsWith("/login?") ||
+    pathname === "/unlock" ||
+    pathname.startsWith("/unlock/") ||
+    pathname.startsWith("/unlock?")
+  ) {
+    return "/chats";
+  }
+  return pathname;
+}
+
 export function UnlockRoute(): JSX.Element | null {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const userId = searchParams.get("userId");
 
@@ -68,7 +103,7 @@ export function UnlockRoute(): JSX.Element | null {
     setBusy(true);
     try {
       await unlockWithPassphrase(userId, passphrase, pgpDiffers ? pgpPassphrase : undefined);
-      navigate("/chats", { replace: true });
+      navigate(resolvePostUnlockTarget(location.state), { replace: true });
     } catch (e) {
       setError(toUserMessage(e));
     } finally {

@@ -34,6 +34,8 @@
       "reauthHint": "If your server session expired too, enter your password below to log in again. Leave it empty to only unlock the keystore.",
       "submit": "Unlock",
       "submitReauth": "Unlock & re-authorize",
+      "reauthNeeded": "The server rejected the stored token — enter your account password to log in again. Your keystore passphrase was already verified and is still in the form.",
+      "noIdentity": "No user found to unlock: there is no keystore on this device. Please log in again via the login page.",
       "emailLocked": "Email is locked to your account"
     },
     "logout": "Logout"

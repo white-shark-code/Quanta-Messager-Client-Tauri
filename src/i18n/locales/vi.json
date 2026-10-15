@@ -37,7 +37,9 @@
       "description": "Phiên của bạn đã hết hạn. Nhập cụm mật khẩu keystore (để trống nếu chưa đặt) để tiếp tục.",
       "passphrase": "Cụm mật khẩu",
       "passphraseOptional": "Cụm mật khẩu (không bắt buộc)",
-      "submit": "Mở khóa"
+      "submit": "Mở khóa",
+      "reauthNeeded": "Máy chủ đã từ chối token đã lưu — hãy nhập mật khẩu tài khoản để đăng nhập lại. Cụm mật khẩu keystore đã được xác minh và vẫn còn trong biểu mẫu.",
+      "noIdentity": "Không tìm thấy người dùng để mở khóa: thiết bị này không có keystore. Vui lòng đăng nhập lại qua trang đăng nhập."
     },
     "errors": {
       "passwordMin": "Mật khẩu phải có ít nhất 8 ký tự",

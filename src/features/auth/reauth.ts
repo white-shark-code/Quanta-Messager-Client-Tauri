@@ -16,13 +16,14 @@
  *   5. `authApi.me()` validates the new token and refreshes session
  *      metadata (in case email/id drifted server-side).
  *
- * The email is sourced from `sessionStore` rather than taken as an
- * argument: in a multi-user environment the keystore belongs to one
- * specific userId and the email must match what's inside the keystore.
- * Letting the caller type a different email would be an invitation to
- * cross-account token confusion.
+ * The email is sourced from `sessionStore` by default, but callers
+ * that already resolved the identity (e.g. `UnlockAgainModal` falling
+ * back to the keystore index when the store is empty) may pass it
+ * explicitly via `ReauthArgs.email`. Letting the caller type a *free*
+ * email would still be an invitation to cross-account token confusion,
+ * so the modal only ever passes the email locked to the keystore owner.
  */
-import { configureClient } from "@/infra/apiClient";
+import { setAccessToken } from "@/features/auth/accessToken";
 import * as authApi from "@/features/auth/api";
 import { unlockWithPassphrase } from "@/features/auth/unlock";
 import { updateKeystoreToken } from "@/features/secure-store/store";
@@ -40,11 +41,19 @@ export interface ReauthArgs {
   pgpPassphrase?: string;
   /** Server password — re-authorized against `/auth/login`. */
   serverPassword: string;
+  /**
+   * Explicit account email for `/auth/login`.
+   *
+   * Falls back to `sessionStore.user.email` when omitted (back-compat).
+   * The `throw` on missing identity only fires when neither source
+   * provides an email, so index-resolved identities keep working.
+   */
+  email?: string;
 }
 
 export async function reauth(args: ReauthArgs): Promise<void> {
-  const me = useSessionStore.getState().user;
-  if (me === null) {
+  const email = args.email ?? useSessionStore.getState().user?.email;
+  if (email === undefined || email.length === 0) {
     throw new Error("reauth: no user in session — cannot determine email");
   }
 
@@ -53,21 +62,23 @@ export async function reauth(args: ReauthArgs): Promise<void> {
 
   // 2. Re-login → fresh access token. fastapi-users uses OAuth2 form
   //    fields `username` / `password` (see auth/api.ts). The username
-  //    is the user's email — it's already in sessionStore.user.email
-  //    from the previous login.
+  //    is the user's email — from the explicit arg when the caller
+  //    resolved it via the keystore index, otherwise from the previous
+  //    login still sitting in sessionStore.user.email.
   const res = await authApi.login({
-    username: me.email,
+    username: email,
     password: args.serverPassword,
   });
 
   // 3. Persist the new token in the (still-decrypted) keystore.
   await updateKeystoreToken(args.userId, args.keystorePassphrase, res.access_token);
 
-  // 4. Re-point the apiClient at the fresh bearer.
-  configureClient({
-    tokenProvider: () => res.access_token,
-    onUnauthorized: () => useSessionStore.getState().lock(),
-  });
+  // 4. Publish the fresh bearer into the shared in-memory holder.
+  // apiClient reads it through the single `bindTokenProvider(() =>
+  // getAccessToken())` binding (see queries.ts), so a later lock()
+  // clearing the holder revokes it — a per-token closure here would
+  // keep sending the old bearer after lock (soft-lock retains identity).
+  setAccessToken(res.access_token);
 
   // 5. Validate the new token by hitting /users/me; refresh session
   //    metadata in case the server returned updated fields.

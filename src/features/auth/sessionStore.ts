@@ -12,7 +12,23 @@ export interface SessionState {
   setUser: (user: User | null) => void;
   setUnlocked: (unlocked: boolean) => void;
   setFingerprint: (fingerprint: string | null) => void;
+  /**
+   * Soft-lock: revokes the access token and flips `isUnlocked` off,
+   * but RETAINS `user` identity so `UnlockAgainModal` / reauth can
+   * recover without asking for email/login again.
+   * Key material must be wiped separately at the call site
+   * (`keyringStore.clear()` + `clearDecryptedCache()`), see `useIdleTimeout`.
+   */
   lock: () => void;
+  /**
+   * Hard logout (explicit user action): same as `lock()` plus
+   * wipes `user` identity. Caller must also clear key material.
+   */
+  logout: () => void;
+  /**
+   * 401 handler — same semantics as soft `lock()` (identity retained
+   * for the reauth modal).
+   */
   onUnauthorized: () => void;
 }
 
@@ -25,11 +41,15 @@ export const useSessionStore = create<SessionState>((set) => ({
   setFingerprint: (fingerprint) => set({ fingerprint }),
   lock: () => {
     clearAccessToken();
+    set({ isUnlocked: false, fingerprint: null });
+  },
+  logout: () => {
+    clearAccessToken();
     set({ user: null, isUnlocked: false, fingerprint: null });
   },
   onUnauthorized: () => {
     clearAccessToken();
-    set({ user: null, isUnlocked: false, fingerprint: null });
+    set({ isUnlocked: false, fingerprint: null });
   },
 }));
 

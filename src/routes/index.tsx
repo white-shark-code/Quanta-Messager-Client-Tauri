@@ -1,10 +1,28 @@
-import { useEffect, useState } from "react";
-import { createBrowserRouter, Link, useNavigate, type RouteObject } from "react-router-dom";
-import { Anchor, Button, Paper, PasswordInput, Stack, TextInput, Title } from "@mantine/core";
+import { useEffect, useRef, useState } from "react";
+import {
+  createBrowserRouter,
+  Link,
+  useLocation,
+  useNavigate,
+  type RouteObject,
+} from "react-router-dom";
+import {
+  Anchor,
+  Button,
+  Center,
+  Loader,
+  Paper,
+  PasswordInput,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useTranslation } from "react-i18next";
 
 import { useLogin } from "@/features/auth/queries";
 import { toUserMessage } from "@/infra/error";
+import { getLastUserId } from "@/features/secure-store/store";
 
 import { AppShellRoute } from "./AppShellRoute";
 import { ChatRoute } from "./ChatRoute";
@@ -67,17 +85,41 @@ export function LoginRoute(): JSX.Element {
 
 const RegisterRoute = () => <Placeholder name="RegisterRoute" />;
 
-function RootRedirect(): null {
+function RootRedirect(): JSX.Element {
   const navigate = useNavigate();
-  const [decided, setDecided] = useState(false);
+  const location = useLocation();
+  const startedRef = useRef(false);
 
   useEffect(() => {
-    if (decided) return;
-    setDecided(true);
-    navigate("/login", { replace: true });
-  }, [decided, navigate]);
+    if (startedRef.current) return;
+    startedRef.current = true;
+    let cancelled = false;
+    void getLastUserId().then((userId) => {
+      if (cancelled) return;
+      if (userId !== null) {
+        navigate(`/unlock?userId=${encodeURIComponent(userId)}`, {
+          replace: true,
+          state: { from: location },
+        });
+      } else {
+        navigate("/login", { replace: true });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, location]);
 
-  return null;
+  return (
+    <Center mih="100vh">
+      <Stack align="center" gap="xs">
+        <Loader size="md" />
+        <Text c="dimmed" size="sm">
+          Загрузка сессии…
+        </Text>
+      </Stack>
+    </Center>
+  );
 }
 
 const protectedRoutes: RouteObject[] = [

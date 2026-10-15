@@ -11,6 +11,7 @@ vi.mock("@/infra/apiClient", () => {
 });
 
 import { useSessionStore } from "@/features/auth/sessionStore";
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/features/auth/accessToken";
 
 const SESSION_MODULE_INITIAL_CALLS = 1;
 
@@ -21,6 +22,7 @@ describe("auth/sessionStore", () => {
 
   afterEach(() => {
     useSessionStore.setState({ user: null, isUnlocked: false, fingerprint: null });
+    clearAccessToken();
     vi.clearAllMocks();
   });
 
@@ -74,30 +76,49 @@ describe("auth/sessionStore", () => {
     expect(useSessionStore.getState().fingerprint).toBeNull();
   });
 
-  it("lock() resets user, isUnlocked, and fingerprint", () => {
+  it("lock() is soft: retains user, clears isUnlocked/fingerprint/token", () => {
     useSessionStore.getState().setUser({ id: "u-1", email: "alice@example.com" });
     useSessionStore.getState().setUnlocked(true);
     useSessionStore.getState().setFingerprint("DEADBEEF");
+    setAccessToken("tok-1");
 
     useSessionStore.getState().lock();
 
     const state = useSessionStore.getState();
-    expect(state.user).toBeNull();
+    expect(state.user).toEqual({ id: "u-1", email: "alice@example.com" });
     expect(state.isUnlocked).toBe(false);
     expect(state.fingerprint).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 
-  it("onUnauthorized() also resets all three fields (same as lock)", () => {
-    useSessionStore.getState().setUser({ id: "u-2", email: "bob@example.com" });
+  it("logout() is hard: clears user, isUnlocked, fingerprint, token", () => {
+    useSessionStore.getState().setUser({ id: "u-1", email: "alice@example.com" });
     useSessionStore.getState().setUnlocked(true);
-    useSessionStore.getState().setFingerprint("FACEFEED");
+    useSessionStore.getState().setFingerprint("DEADBEEF");
+    setAccessToken("tok-1");
 
-    useSessionStore.getState().onUnauthorized();
+    useSessionStore.getState().logout();
 
     const state = useSessionStore.getState();
     expect(state.user).toBeNull();
     expect(state.isUnlocked).toBe(false);
     expect(state.fingerprint).toBeNull();
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it("onUnauthorized() behaves like lock (retains user, clears the rest)", () => {
+    useSessionStore.getState().setUser({ id: "u-2", email: "bob@example.com" });
+    useSessionStore.getState().setUnlocked(true);
+    useSessionStore.getState().setFingerprint("FACEFEED");
+    setAccessToken("tok-2");
+
+    useSessionStore.getState().onUnauthorized();
+
+    const state = useSessionStore.getState();
+    expect(state.user).toEqual({ id: "u-2", email: "bob@example.com" });
+    expect(state.isUnlocked).toBe(false);
+    expect(state.fingerprint).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 
   it("bindTokenProvider wires configureClient with a tokenProvider and onUnauthorized=lock", async () => {
@@ -130,7 +151,7 @@ describe("auth/sessionStore", () => {
     arg.onUnauthorized();
 
     const after = sessionStoreModule.useSessionStore.getState();
-    expect(after.user).toBeNull();
+    expect(after.user).toEqual({ id: "x", email: "y" });
     expect(after.isUnlocked).toBe(false);
     expect(after.fingerprint).toBeNull();
   });

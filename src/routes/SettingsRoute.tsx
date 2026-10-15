@@ -117,7 +117,7 @@ export function SettingsRoute(): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const user = useSessionStore((s) => s.user);
-  const lock = useSessionStore((s) => s.lock);
+  const logout = useSessionStore((s) => s.logout);
   const clearKeyring = useKeyringStore((s) => s.clear);
   const theme = useSettingsStore((s) => s.theme);
   const setSetting = useSettingsStore((s) => s.set);
@@ -177,7 +177,7 @@ export function SettingsRoute(): JSX.Element {
     // fingerprint) so a subsequent login can't be misled by stale
     // `publicKeyArmored` pointing at a deleted keystore file.
     clearKeyring();
-    lock();
+    logout();
     setEraseData(false);
     closeConfirm();
     navigate("/login", { replace: true });

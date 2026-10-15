@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { readIndexBufferMock, writeIndexBufferMock } = vi.hoisted(() => ({
+const { readIndexBufferMock, writeIndexBufferMock, hasKeystoreMock } = vi.hoisted(() => ({
   readIndexBufferMock: vi.fn(),
   writeIndexBufferMock: vi.fn(),
+  hasKeystoreMock: vi.fn(),
 }));
 
 vi.mock("@/infra/tauriBridge", () => {
@@ -11,12 +12,13 @@ vi.mock("@/infra/tauriBridge", () => {
     writeIndexBuffer: (...args: unknown[]): unknown => writeIndexBufferMock(...args) as unknown,
     readKeystoreBuffer: vi.fn(),
     writeKeystoreBuffer: vi.fn(),
-    hasKeystore: vi.fn(),
+    hasKeystore: (...args: unknown[]): unknown => hasKeystoreMock(...args) as unknown,
     deleteKeystoreFile: vi.fn(),
   };
 });
 
 import {
+  getLastUserId,
   readIndex,
   writeIndex,
   upsertIndexEntry,
@@ -35,6 +37,8 @@ beforeEach(() => {
   readIndexBufferMock.mockReset();
   writeIndexBufferMock.mockReset();
   writeIndexBufferMock.mockResolvedValue(undefined);
+  hasKeystoreMock.mockReset();
+  hasKeystoreMock.mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -215,5 +219,100 @@ describe("secure-store/index — removeIndexEntry", () => {
 describe("secure-store/index — path constants", () => {
   it("exposes KEYSTORE_INDEX_PATH as keystores/index.json (shared index file)", () => {
     expect(KEYSTORE_INDEX_PATH).toBe("keystores/index.json");
+  });
+});
+
+describe("secure-store/index — getLastUserId", () => {
+  it("returns null for an empty index", async () => {
+    readIndexBufferMock.mockResolvedValueOnce(new Uint8Array(0));
+
+    await expect(getLastUserId()).resolves.toBeNull();
+    expect(hasKeystoreMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the id when there is a single user with a keystore", async () => {
+    const idx: KeystoreIndex = {
+      users: [{ userId: "u-1", email: "a@example.com", lastUsedAt: "2026-01-01T00:00:00.000Z" }],
+    };
+    readIndexBufferMock.mockResolvedValueOnce(bytesFromIndex(idx));
+    hasKeystoreMock.mockResolvedValueOnce(true);
+
+    await expect(getLastUserId()).resolves.toBe("u-1");
+    expect(hasKeystoreMock).toHaveBeenCalledWith("u-1");
+  });
+
+  it("returns the freshest user by lastUsedAt", async () => {
+    const idx: KeystoreIndex = {
+      users: [
+        { userId: "u-old", email: "old@example.com", lastUsedAt: "2026-01-01T00:00:00.000Z" },
+        { userId: "u-new", email: "new@example.com", lastUsedAt: "2026-06-01T00:00:00.000Z" },
+        { userId: "u-mid", email: "mid@example.com", lastUsedAt: "2026-03-01T00:00:00.000Z" },
+      ],
+    };
+    readIndexBufferMock.mockResolvedValueOnce(bytesFromIndex(idx));
+
+    await expect(getLastUserId()).resolves.toBe("u-new");
+    // Freshest candidate is probed first.
+    expect(hasKeystoreMock.mock.calls[0]?.[0]).toBe("u-new");
+  });
+
+  it("skips entries without a keystore on disk and falls through to the next freshest", async () => {
+    const idx: KeystoreIndex = {
+      users: [
+        { userId: "u-old", email: "old@example.com", lastUsedAt: "2026-01-01T00:00:00.000Z" },
+        { userId: "u-new", email: "new@example.com", lastUsedAt: "2026-06-01T00:00:00.000Z" },
+      ],
+    };
+    readIndexBufferMock.mockResolvedValueOnce(bytesFromIndex(idx));
+    hasKeystoreMock.mockImplementation((userId: unknown) => Promise.resolve(userId === "u-old"));
+
+    await expect(getLastUserId()).resolves.toBe("u-old");
+  });
+
+  it("returns null when no indexed user has a keystore on disk", async () => {
+    const idx: KeystoreIndex = {
+      users: [{ userId: "u-1", email: "a@example.com", lastUsedAt: "2026-01-01T00:00:00.000Z" }],
+    };
+    readIndexBufferMock.mockResolvedValueOnce(bytesFromIndex(idx));
+    hasKeystoreMock.mockResolvedValueOnce(false);
+
+    await expect(getLastUserId()).resolves.toBeNull();
+  });
+
+  it("ignores entries with a broken lastUsedAt", async () => {
+    const idx: KeystoreIndex = {
+      users: [
+        { userId: "u-broken", email: "broken@example.com", lastUsedAt: "not-a-date" },
+        { userId: "u-good", email: "good@example.com", lastUsedAt: "2026-02-01T00:00:00.000Z" },
+      ],
+    };
+    readIndexBufferMock.mockResolvedValueOnce(bytesFromIndex(idx));
+
+    await expect(getLastUserId()).resolves.toBe("u-good");
+    expect(hasKeystoreMock).toHaveBeenCalledWith("u-good");
+    expect(hasKeystoreMock).not.toHaveBeenCalledWith("u-broken");
+  });
+
+  it("returns null when every lastUsedAt is broken", async () => {
+    const idx: KeystoreIndex = {
+      users: [
+        { userId: "u-1", email: "a@example.com", lastUsedAt: "garbage" },
+        { userId: "u-2", email: "b@example.com", lastUsedAt: "" },
+      ],
+    };
+    readIndexBufferMock.mockResolvedValueOnce(bytesFromIndex(idx));
+
+    await expect(getLastUserId()).resolves.toBeNull();
+    expect(hasKeystoreMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null (best-effort) when hasKeystore rejects", async () => {
+    const idx: KeystoreIndex = {
+      users: [{ userId: "u-1", email: "a@example.com", lastUsedAt: "2026-01-01T00:00:00.000Z" }],
+    };
+    readIndexBufferMock.mockResolvedValueOnce(bytesFromIndex(idx));
+    hasKeystoreMock.mockRejectedValueOnce(new Error("disk I/O"));
+
+    await expect(getLastUserId()).resolves.toBeNull();
   });
 });

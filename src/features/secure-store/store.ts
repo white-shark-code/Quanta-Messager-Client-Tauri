@@ -21,6 +21,7 @@
  */
 
 import {
+  hasKeystore,
   readKeystoreBuffer,
   writeKeystoreBuffer,
   readIndexBuffer,
@@ -103,6 +104,62 @@ export async function removeIndexEntry(userId: string): Promise<void> {
   const idx = await readIndex();
   idx.users = idx.users.filter((u) => u.userId !== userId);
   await writeIndex(idx);
+}
+
+/**
+ * Resolve the most recently used user that still has a keystore on disk.
+ *
+ * Reads the unencrypted index (`readIndex()`), sorts entries by
+ * `lastUsedAt` descending (entries with unparsable dates are ignored),
+ * then returns the first `userId` for which `hasKeystore(userId)` is
+ * true.
+ *
+ * Best-effort: any error (index unreadable, `hasKeystore` throwing,
+ * etc.) results in `null` rather than a rejection, so boot-redirect
+ * callers can fall back to `/login` without extra try/catch.
+ */
+export async function getLastUserId(): Promise<string | null> {
+  try {
+    const idx = await readIndex();
+    const users = idx.users;
+    if (!Array.isArray(users) || users.length === 0) {
+      return null;
+    }
+    const ranked: { userId: string; time: number }[] = [];
+    for (const entry of users) {
+      if (
+        entry === null ||
+        typeof entry !== "object" ||
+        typeof entry.userId !== "string" ||
+        entry.userId.length === 0 ||
+        typeof entry.lastUsedAt !== "string"
+      ) {
+        continue;
+      }
+      const time = Date.parse(entry.lastUsedAt);
+      if (Number.isNaN(time)) {
+        continue;
+      }
+      ranked.push({ userId: entry.userId, time });
+    }
+    if (ranked.length === 0) {
+      return null;
+    }
+    ranked.sort((a, b) => b.time - a.time);
+    for (const candidate of ranked) {
+      try {
+        if (await hasKeystore(candidate.userId)) {
+          return candidate.userId;
+        }
+      } catch {
+        // hasKeystore failed for this candidate — try the next one.
+        continue;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /* ------------------------------------------------------------------ *

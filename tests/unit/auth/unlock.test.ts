@@ -185,7 +185,7 @@ describe("auth/unlock", () => {
       expect(typeof arg.onUnauthorized).toBe("function");
     });
 
-    it("onUnauthorized passed to configureClient locks the session store", async () => {
+    it("onUnauthorized passed to configureClient soft-locks (retains user)", async () => {
       await unlockWithPassphrase(USER_A, "keystore-pass");
 
       const arg = configureClientMock.mock.calls[0]?.[0] as {
@@ -199,7 +199,7 @@ describe("auth/unlock", () => {
       arg.onUnauthorized();
 
       const state = useSessionStore.getState();
-      expect(state.user).toBeNull();
+      expect(state.user).toEqual({ id: "x", email: "y" });
       expect(state.isUnlocked).toBe(false);
       expect(state.fingerprint).toBeNull();
     });
