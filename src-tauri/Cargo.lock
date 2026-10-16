@@ -3454,7 +3454,7 @@ dependencies = [
 
 [[package]]
 name = "quant-messenger"
-version = "0.1.0"
+version = "0.9.5-beta"
 dependencies = [
  "env_logger",
  "log",
