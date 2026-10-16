@@ -24,9 +24,16 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "category": "Network",
+    "category": "SocialNetworking",
     "copyright": "",
     "shortDescription": "E2E-encrypted messenger",
-    "longDescription": "Quant Messenger — secure E2E-encrypted messaging client"
+    "longDescription": "Quant Messenger — secure E2E-encrypted messaging client",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }
