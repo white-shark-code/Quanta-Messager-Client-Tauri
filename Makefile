@@ -10,7 +10,7 @@ SUDO ?= $(shell if [ "$$(id -u)" = "0" ]; then echo ""; elif command -v sudo >/d
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install check web release-web nginx package tauri aur aur-check deps-apt deps-dnf deps-pacman clean
+.PHONY: help install check web release-web nginx package tauri aur aur-check deps-apt deps-dnf deps-pacman clean distclean
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -80,3 +80,13 @@ clean: ## Remove build, stage and packaging artifacts
 	rm -rf $(DIST_DIR) $(DEPLOY_DIR) $(PKG_DIR)
 	rm -f deploy/arch/*.pkg.tar.zst
 	rm -rf deploy/arch/src deploy/arch/pkg
+
+distclean: ## Remove ALL build garbage (incl. node_modules and Rust target)
+	rm -rf $(DIST_DIR) $(DEPLOY_DIR) $(PKG_DIR)
+	rm -f deploy/arch/*.pkg.tar.zst
+	rm -rf deploy/arch/src deploy/arch/pkg
+	rm -rf node_modules
+	rm -rf src-tauri/target
+	rm -rf coverage .vitest-exports
+	rm -f tsconfig.tsbuildinfo src/tsconfig.tsbuildinfo
+	@echo "Full purge done. Run 'make install' to fetch dependencies again."
