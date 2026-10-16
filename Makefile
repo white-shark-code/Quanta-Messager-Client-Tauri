@@ -72,7 +72,7 @@ deps-dnf: ## Install Tauri build deps on Fedora (dnf)
 deps-pacman: ## Install Tauri build deps on Arch Linux (pacman)
 	@echo "Installing Tauri build dependencies (pacman)..."
 	$(SUDO) pacman -Sy
-	$(SUDO) pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl libayatana-appindicator librsvg nodejs npm rust ada icu libuv zlib
+	$(SUDO) pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl libayatana-appindicator librsvg nodejs npm rust ada icu libuv zlib simdjson
 	@echo "Trying optional libxdo (missing on some Artix repos, non-fatal)..."
 	-$(SUDO) pacman -S --needed libxdo
 
