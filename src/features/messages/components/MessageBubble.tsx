@@ -1,12 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { ActionIcon, Button, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
-import { IconAlertCircle, IconCheck, IconMessageReply, IconRefresh } from "@tabler/icons-react";
+import {
+  ActionIcon,
+  Button,
+  Checkbox,
+  Group,
+  Loader,
+  Paper,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconMessageReply,
+  IconRefresh,
+  IconShare,
+} from "@tabler/icons-react";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTranslation } from "react-i18next";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { useUserPublicKey } from "@/features/users/queries";
 
+import { ForwardedMarker } from "./ForwardedMarker";
 import {
   jumpToMessage,
   messageAnchorId,
@@ -16,8 +34,10 @@ import {
 import type { DialogMessage } from "../model";
 import { useRetryMessage, type PendingMessage } from "../mutations";
 import { useDecryptedMessage } from "../queries";
-import { truncatePreview, type ReplyRef } from "../replyEnvelope";
+import { truncatePreview, type ForwardRef, type ReplyRef } from "../replyEnvelope";
+import { useForwardStore } from "../forwardStore";
 import { useReplyStore } from "../replyStore";
+import { MessageAttachments } from "./MessageAttachments";
 
 type AnyMessage = DialogMessage | PendingMessage;
 
@@ -33,16 +53,33 @@ interface MessageBubbleProps {
   chatId: string;
   /** Number of replies to this message; the badge hides when 0/undefined. */
   replyCount?: number;
+  /** Forward selection mode: show a checkbox instead of the forward button. */
+  selectMode?: boolean;
+  /** Whether this message is in the forward selection (only in selectMode). */
+  selected?: boolean;
+  /** Chat flavor for the attachments endpoint. Defaults to private. */
+  kind?: "private" | "group";
 }
 
-export function MessageBubble({ message, chatId, replyCount }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  chatId,
+  replyCount,
+  selectMode = false,
+  selected = false,
+  kind = "private",
+}: MessageBubbleProps) {
   const { t } = useTranslation();
   const currentUser = useSessionStore((s) => s.user);
   const isMine = message.owner_id === currentUser?.id;
   const pending = isPending(message);
   const retry = useRetryMessage(chatId);
   const setReply = useReplyStore((s) => s.setReply);
+  const toggleForwardSelect = useForwardStore((s) => s.toggleSelect);
   const [hovering, setHovering] = useState(false);
+  // Touch devices have no hover: keep the action buttons always visible.
+  const coarsePointer = useMediaQuery("(pointer: coarse)");
+  const actionsVisible = hovering || coarsePointer === true;
   const [highlighted, setHighlighted] = useState(false);
   const highlightTimer = useRef<number | null>(null);
 
@@ -101,7 +138,20 @@ export function MessageBubble({ message, chatId, replyCount }: MessageBubbleProp
     });
   }
 
+  function handleForward(): void {
+    if (pending) return;
+    // Entering selection mode selects the clicked message immediately —
+    // no second click needed for the first message.
+    toggleForwardSelect(chatId, message.id);
+  }
+
+  // Rows with no decryptable text (locked) can't be forwarded; pending /
+  // failed rows get no forward/select UI at all.
+  const locked = !pending && (decrypted?.text?.length ?? 0) === 0;
+  const forwarded: ForwardRef | null = decrypted?.forwarded ?? null;
+
   const showBadge = replyCount !== undefined && replyCount > 0;
+  const forwardLabel = t("messages.forward", { defaultValue: "Forward" });
 
   return (
     <Group
@@ -152,9 +202,11 @@ export function MessageBubble({ message, chatId, replyCount }: MessageBubbleProp
               </Text>
             </Paper>
           )}
+          {forwarded !== null && <ForwardedMarker forwarded={forwarded} chatId={chatId} />}
           <Text size="sm">
             {text ?? (decrypting ? t("messages.decrypting") : t("messages.locked"))}
           </Text>
+          {!pending && <MessageAttachments messageId={message.id} kind={kind} />}
           <Group gap={4} justify="space-between">
             <Text size="xs" c="dimmed">
               {time.format("HH:mm")}
@@ -188,14 +240,57 @@ export function MessageBubble({ message, chatId, replyCount }: MessageBubbleProp
               {!pending && (
                 <Tooltip label={t("messages.reply", { defaultValue: "Reply" })}>
                   <ActionIcon
-                    size="xs"
+                    size="sm"
                     variant="subtle"
                     aria-label={t("messages.reply", { defaultValue: "Reply" })}
                     onClick={handleReply}
-                    style={{ opacity: hovering ? 1 : 0, transition: "opacity 120ms" }}
+                    style={{ opacity: actionsVisible ? 1 : 0, transition: "opacity 120ms" }}
                   >
-                    <IconMessageReply size={12} />
+                    <IconMessageReply size={14} />
                   </ActionIcon>
+                </Tooltip>
+              )}
+              {!pending && selectMode && (
+                <Checkbox
+                  size="xs"
+                  aria-label={forwardLabel}
+                  checked={selected}
+                  onChange={handleForward}
+                />
+              )}
+              {!pending && !selectMode && (
+                <Tooltip
+                  label={
+                    locked
+                      ? t("messages.forwardUndecryptable", {
+                          defaultValue: "Cannot forward an undecrypted message",
+                        })
+                      : forwardLabel
+                  }
+                >
+                  {locked ? (
+                    <span style={{ display: "inline-flex" }}>
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        aria-label={forwardLabel}
+                        disabled
+                        style={{ opacity: actionsVisible ? 1 : 0, transition: "opacity 120ms" }}
+                      >
+                        <IconShare size={14} />
+                      </ActionIcon>
+                    </span>
+                  ) : (
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      aria-label={forwardLabel}
+                      onClick={handleForward}
+                      style={{ opacity: actionsVisible ? 1 : 0, transition: "opacity 120ms" }}
+                    >
+                      <IconShare size={14} />
+                    </ActionIcon>
+                  )}
                 </Tooltip>
               )}
             </Group>

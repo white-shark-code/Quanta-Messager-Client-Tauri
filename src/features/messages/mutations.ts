@@ -40,7 +40,13 @@ import { debugLog } from "@/lib/debug";
 import * as messagesApi from "./api";
 import type { CreateMessageRequest, DialogMessage, ListItems } from "./model";
 import { getDecrypted } from "./queries";
-import { encodeReplyBody, truncatePreview, type ReplyRef } from "./replyEnvelope";
+import {
+  encodeForwardBody,
+  encodeReplyBody,
+  truncatePreview,
+  type ForwardRef,
+  type ReplyRef,
+} from "./replyEnvelope";
 
 export type ChatKind = "private" | "group";
 
@@ -63,6 +69,13 @@ export interface SendMessageInput {
    * to `""`. Replying to an unsent (pending/failed) row throws.
    */
   replyTo?: { id: string };
+  /**
+   * When set, the message is sent as a forward: the body is wrapped via
+   * `encodeForwardBody(text, forwarded)` INSTEAD of raw text (same dual-copy
+   * encryption of the envelope string). Wins over `replyTo` when both are
+   * present — the reply link is dropped (see `stripForForward`).
+   */
+  forwarded?: ForwardRef;
 }
 
 /**
@@ -219,8 +232,11 @@ function updateCache(
  *
  * Returns `null` only when no key (own or peer) is usable and we
  * deliberately accept notes-to-self mode.
+ *
+ * Exported for reuse by `forward.ts`, which resolves target-chat
+ * recipients with identical semantics.
  */
-async function resolveRecipients(
+export async function resolveRecipients(
   ownPublicKey: openpgp.Key | null,
   peerPublicKeyArmored: string | null,
   expectPeer: boolean,
@@ -306,7 +322,7 @@ function useSendMessage(
   return useMutation<DialogMessage, Error, SendMessageInput, SendContext>({
     mutationKey: ["messages", kind, chatId, "send"],
 
-    mutationFn: async ({ text, replyTo }: SendMessageInput) => {
+    mutationFn: async ({ text, replyTo, forwarded }: SendMessageInput) => {
       if (privateKey === null) {
         throw new Error("Keys not loaded");
       }
@@ -319,10 +335,16 @@ function useSendMessage(
 
       // Resolve the reply ref synchronously from the caches (throws on
       // pending parent). ONE envelope string feeds both ciphertexts so
-      // peer and self copies decrypt to the same reply.
+      // peer and self copies decrypt to the same reply. A `forwarded`
+      // origin wins over `replyTo` — the reply link is dropped on forward.
       const reply: ReplyRef | null =
-        replyTo !== undefined ? resolveReplyRef(queryClient, kind, chatId, replyTo.id) : null;
-      const body = buildSendBody(text, reply);
+        forwarded !== undefined
+          ? null
+          : replyTo !== undefined
+            ? resolveReplyRef(queryClient, kind, chatId, replyTo.id)
+            : null;
+      const body =
+        forwarded !== undefined ? encodeForwardBody(text, forwarded) : buildSendBody(text, reply);
 
       const recipients = await resolveRecipients(
         publicKey,
@@ -365,7 +387,7 @@ function useSendMessage(
       });
     },
 
-    onMutate: async ({ text, replyTo }) => {
+    onMutate: async ({ text, replyTo, forwarded }) => {
       // A refetch landing mid-flight would clobber the optimistic row.
       await queryClient.cancelQueries({ queryKey });
 
@@ -373,8 +395,14 @@ function useSendMessage(
       // Resolve the reply preview here too so the optimistic row renders
       // the quote instantly; same lookup as `mutationFn` (throws on
       // pending parent, which aborts the send before `mutationFn` runs).
+      // Forwarded rows carry no reply preview — the reply link is dropped
+      // on forward, same as in `mutationFn`.
       const replyPreview: ReplyRef | null =
-        replyTo !== undefined ? resolveReplyRef(queryClient, kind, chatId, replyTo.id) : null;
+        forwarded !== undefined
+          ? null
+          : replyTo !== undefined
+            ? resolveReplyRef(queryClient, kind, chatId, replyTo.id)
+            : null;
       const pending = makePending(chatId, user?.id ?? "me", text, "pending", replyPreview);
 
       if (previous !== undefined) {

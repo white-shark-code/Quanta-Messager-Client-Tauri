@@ -69,7 +69,7 @@ import { useSessionStore } from "@/features/auth/sessionStore";
 
 import * as messagesApi from "./api";
 import type { DialogMessage, ListItems } from "./model";
-import { decodeBody, type ReplyRef } from "./replyEnvelope";
+import { decodeBody, type ForwardRef, type ReplyRef } from "./replyEnvelope";
 
 /* ------------------------------------------------------------------ *
  * Decryption cache (in-memory, not React-Query-managed)
@@ -80,6 +80,7 @@ export interface DecryptedMessage {
   text: string;
   verified: boolean;
   reply: ReplyRef | null;
+  forwarded: ForwardRef | null;
 }
 
 /**
@@ -182,11 +183,11 @@ async function tryDecrypt(
       senderKey,
       privateKey,
     );
-    // Replies arrive as a JSON envelope inside the ciphertext — split it
-    // back into display text + reply ref. Plain messages (raw text,
-    // non-JSON, invalid shape) fall back to `{ text: plaintext, reply: null }`.
+    // Replies/forwards arrive as a JSON envelope inside the ciphertext —
+    // split it back into display text + refs. Plain messages (raw text,
+    // non-JSON, invalid shape) fall back to null refs.
     const parsed = decodeBody(text);
-    return { text: parsed.text, verified, reply: parsed.reply };
+    return { text: parsed.text, verified, reply: parsed.reply, forwarded: parsed.forwarded };
   } catch (e) {
     void debugLog("Decrypt message", e, {
       messageId: msg.id,

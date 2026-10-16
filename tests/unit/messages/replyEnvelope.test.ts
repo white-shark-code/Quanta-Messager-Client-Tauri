@@ -18,6 +18,7 @@ describe("messages/replyEnvelope", () => {
       expect(decodeBody(encoded)).toEqual({
         text: "hello",
         reply: { id: "msg-1", sender: "alice", preview: "parent text" },
+        forwarded: null,
       });
     });
 
@@ -36,6 +37,7 @@ describe("messages/replyEnvelope", () => {
       expect(decodeBody("just a message")).toEqual({
         text: "just a message",
         reply: null,
+        forwarded: null,
       });
     });
 
@@ -44,12 +46,13 @@ describe("messages/replyEnvelope", () => {
       expect(decodeBody("{not json")).toEqual({
         text: "{not json",
         reply: null,
+        forwarded: null,
       });
     });
 
     it("falls back when version is not 1", () => {
       const body = JSON.stringify({ v: 2, text: "hi" });
-      expect(decodeBody(body)).toEqual({ text: body, reply: null });
+      expect(decodeBody(body)).toEqual({ text: body, reply: null, forwarded: null });
     });
 
     it("keeps working for JSON plain messages without reply", () => {
@@ -57,6 +60,7 @@ describe("messages/replyEnvelope", () => {
       expect(decodeBody(body)).toEqual({
         text: '{"not": "reply"}',
         reply: null,
+        forwarded: null,
       });
     });
 
@@ -66,12 +70,12 @@ describe("messages/replyEnvelope", () => {
         text: "hi",
         reply: { id: "m" },
       });
-      expect(decodeBody(body)).toEqual({ text: body, reply: null });
+      expect(decodeBody(body)).toEqual({ text: body, reply: null, forwarded: null });
     });
 
     it("falls back for JSON arrays and primitives", () => {
       for (const body of ["[1,2]", '"str"', "42", "null"]) {
-        expect(decodeBody(body)).toEqual({ text: body, reply: null });
+        expect(decodeBody(body)).toEqual({ text: body, reply: null, forwarded: null });
       }
     });
   });

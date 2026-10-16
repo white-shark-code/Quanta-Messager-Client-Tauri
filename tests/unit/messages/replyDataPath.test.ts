@@ -86,27 +86,37 @@ describe("replyEnvelope", () => {
   });
 
   it("decodeBody falls back to plain text for non-JSON input", () => {
-    expect(decodeBody("just a message")).toEqual({ text: "just a message", reply: null });
+    expect(decodeBody("just a message")).toEqual({
+      text: "just a message",
+      reply: null,
+      forwarded: null,
+    });
   });
 
   it("decodeBody falls back for JSON that is not a v1 envelope", () => {
-    expect(decodeBody('{"foo":1}')).toEqual({ text: '{"foo":1}', reply: null });
+    expect(decodeBody('{"foo":1}')).toEqual({ text: '{"foo":1}', reply: null, forwarded: null });
     expect(decodeBody('{"v":1,"text":123,"reply":{}}')).toEqual({
       text: '{"v":1,"text":123,"reply":{}}',
       reply: null,
+      forwarded: null,
     });
     expect(decodeBody('{"v":2,"text":"hi"}')).toEqual({
       text: '{"v":2,"text":"hi"}',
       reply: null,
+      forwarded: null,
     });
-    expect(decodeBody("123")).toEqual({ text: "123", reply: null });
-    expect(decodeBody("")).toEqual({ text: "", reply: null });
+    expect(decodeBody("123")).toEqual({ text: "123", reply: null, forwarded: null });
+    expect(decodeBody("")).toEqual({ text: "", reply: null, forwarded: null });
   });
 
   it("decodeBody unwraps a v1 envelope without a reply key, falls back on malformed reply", () => {
-    expect(decodeBody('{"v":1,"text":"plain"}')).toEqual({ text: "plain", reply: null });
+    expect(decodeBody('{"v":1,"text":"plain"}')).toEqual({
+      text: "plain",
+      reply: null,
+      forwarded: null,
+    });
     const bad = '{"v":1,"text":"hi","reply":{"id":1}}';
-    expect(decodeBody(bad)).toEqual({ text: bad, reply: null });
+    expect(decodeBody(bad)).toEqual({ text: bad, reply: null, forwarded: null });
   });
 
   it("decodeBody never throws, even on garbage", () => {

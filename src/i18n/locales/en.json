@@ -92,6 +92,13 @@
     "repliesCount": "{{count}} replies",
     "viewThread": "View thread",
     "originalUnavailable": "Original message unavailable",
+    "forward": "Forward",
+    "forwardTo": "Forward to...",
+    "forwardedLabel": "Forwarded",
+    "forwardSelected": "Forward ({{count}})",
+    "forwardDone": "Messages forwarded",
+    "forwardSkipped": "{{count}} skipped",
+    "forwardUndecryptable": "Cannot forward an undecrypted message",
     "composer": {
       "unlockFirst": "Unlock to send messages",
       "unlockButton": "Unlock",
@@ -237,6 +244,7 @@
     }
   },
   "media": {
-    "load": "Load"
+    "load": "Load",
+    "openFullscreen": "Open fullscreen"
   }
 }

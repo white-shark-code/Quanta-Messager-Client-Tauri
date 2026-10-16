@@ -1,9 +1,32 @@
 import { useEffect, useState } from "react";
-import { AspectRatio, Button, Center, Group, Image, Loader, Paper, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  AspectRatio,
+  Box,
+  Button,
+  Center,
+  CloseButton,
+  Group,
+  Image,
+  Loader,
+  Modal,
+  Paper,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { IconDownload, IconFile } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import { downloadAndDecryptGroup, downloadAndDecryptPrivate } from "../decrypt";
+import { downloadAndDecryptGroup, downloadAndDecryptPrivate, revokeBlobUrl } from "../decrypt";
 import type { MediaAttachment } from "../model";
+
+/**
+ * Thumbnail bounds: message-list previews never exceed this box,
+ * whatever the source resolution is (a 4000px photo and the 64px test
+ * square render at most this large). `fit="contain"` keeps the aspect
+ * ratio — no cropping.
+ */
+export const THUMB_MAX_W = 240;
+export const THUMB_MAX_H = 180;
 
 interface MediaPreviewProps {
   attachment: MediaAttachment;
@@ -15,17 +38,22 @@ export function MediaPreview({ attachment, kind = "private" }: MediaPreviewProps
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Telegram-style lightbox: thumbnail click opens the image fullscreen,
+  // X / backdrop-click / Escape closes it back to the chat.
+  const [lightbox, setLightbox] = useState(false);
+  const fileName = `file-${attachment.id}.${attachment.mime_type.split("/")[1] ?? "bin"}`;
 
   const isImage = attachment.mime_type.startsWith("image/");
   const downloadFn = kind === "private" ? downloadAndDecryptPrivate : downloadAndDecryptGroup;
 
+  // Revoke through the cache owner so the entry is evicted too:
+  // revoking the URL alone would leave a dead `blob:` URL in
+  // `blobCache`, served stale on the next mount (broken image).
   useEffect(() => {
     return () => {
-      if (url) {
-        URL.revokeObjectURL(url);
-      }
+      revokeBlobUrl(attachment.id);
     };
-  }, [url]);
+  }, [attachment.id]);
 
   async function handleClick() {
     if (url || loading) return;
@@ -58,9 +86,61 @@ export function MediaPreview({ attachment, kind = "private" }: MediaPreviewProps
 
   if (isImage && url) {
     return (
-      <AspectRatio ratio={4 / 3} maw={300}>
-        <Image src={url} alt={attachment.mime_type} radius="md" fit="contain" />
-      </AspectRatio>
+      <>
+        <Box
+          role="button"
+          tabIndex={0}
+          aria-label={t("media.openFullscreen", { defaultValue: "Open fullscreen" })}
+          onClick={() => setLightbox(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") setLightbox(true);
+          }}
+          style={{ cursor: "zoom-in", maxWidth: THUMB_MAX_W }}
+        >
+          <AspectRatio ratio={4 / 3} maw={THUMB_MAX_W} mah={THUMB_MAX_H}>
+            <Image src={url} alt={attachment.mime_type} radius="md" fit="contain" />
+          </AspectRatio>
+        </Box>
+        <Modal
+          opened={lightbox}
+          onClose={() => setLightbox(false)}
+          fullScreen
+          withCloseButton={false}
+          styles={{ body: { height: "calc(100% - 52px)" } }}
+        >
+          <Group justify="space-between" mb="xs">
+            <Text size="sm" c="dimmed">
+              {attachment.mime_type}
+            </Text>
+            <Group gap="xs">
+              <Tooltip label="Download">
+                <ActionIcon
+                  component="a"
+                  href={url}
+                  download={fileName}
+                  variant="subtle"
+                  size="sm"
+                  aria-label="Download"
+                >
+                  <IconDownload size={14} />
+                </ActionIcon>
+              </Tooltip>
+              <CloseButton
+                onClick={() => setLightbox(false)}
+                aria-label={t("common.close", { defaultValue: "Close" })}
+              />
+            </Group>
+          </Group>
+          <Center h="100%">
+            <Image
+              src={url}
+              alt={attachment.mime_type}
+              fit="contain"
+              style={{ maxWidth: "100%", maxHeight: "100%" }}
+            />
+          </Center>
+        </Modal>
+      </>
     );
   }
 
@@ -80,7 +160,7 @@ export function MediaPreview({ attachment, kind = "private" }: MediaPreviewProps
           <Button
             component="a"
             href={url}
-            download={`file-${attachment.id}.${attachment.mime_type.split("/")[1] ?? "bin"}`}
+            download={fileName}
             leftSection={<IconDownload size={16} />}
           >
             Download

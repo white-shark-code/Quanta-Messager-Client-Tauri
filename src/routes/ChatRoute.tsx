@@ -11,8 +11,11 @@ import type { DialogChat } from "@/features/chats/model";
 import { useMarkAsRead } from "@/features/events/useMarkAsRead";
 import { seedCache } from "@/features/dialog-store/store";
 import { Composer } from "@/features/messages/components/Composer";
+import { ForwardBar } from "@/features/messages/components/ForwardBar";
+import { ForwardTargetPicker } from "@/features/messages/components/ForwardTargetPicker";
 import { MessageBubble } from "@/features/messages/components/MessageBubble";
 import { ThreadPanel } from "@/features/messages/components/ThreadPanel";
+import { useForwardStore } from "@/features/messages/forwardStore";
 import { THREAD_OPEN_EVENT } from "@/features/messages/jumpToMessage";
 import type { DialogMessage, ListItems } from "@/features/messages/model";
 import { usePrivateMessages } from "@/features/messages/queries";
@@ -80,6 +83,8 @@ export function ChatRoute(): JSX.Element | null {
   // Reply-thread panel (Track D): opened by Track C's reply-quote click
   // via `openThread(messageId)` (`thread:open` window event).
   const [threadId, setThreadId] = useState<string | null>(null);
+  // Forward target picker (Track C forward UI).
+  const [pickerOpen, setPickerOpen] = useState(false);
   useEffect(() => {
     const onThreadOpen = (e: Event): void => {
       const messageId = (e as CustomEvent<{ messageId: string }>).detail?.messageId;
@@ -123,6 +128,10 @@ export function ChatRoute(): JSX.Element | null {
   // Reply counts for the "N replies" badges, computed once per list (not
   // per bubble). Must stay above the early returns (stable hook order).
   const replyCounts = useReplyCounts(messages?.items);
+
+  // Forward selection for this chat (empty until the user picks a message
+  // via a bubble's forward button). Selector mirrors the forward contract.
+  const selected = useForwardStore((s) => s.selection[chatId ?? ""] ?? []);
 
   if (!chatId) return null;
 
@@ -186,6 +195,9 @@ export function ChatRoute(): JSX.Element | null {
             message={msg}
             chatId={chatId}
             replyCount={replyCounts[msg.id] ?? 0}
+            selectMode={selected.length > 0}
+            selected={selected.includes(msg.id)}
+            kind={kind}
           />
         ))}
         <div ref={messagesEndRef} />
@@ -218,6 +230,16 @@ export function ChatRoute(): JSX.Element | null {
           {peerLookupErrorMessage}
         </Alert>
       )}
+
+      {selected.length > 0 && <ForwardBar chatId={chatId} onProceed={() => setPickerOpen(true)} />}
+
+      <ForwardTargetPicker
+        opened={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        sourceChatId={chatId}
+        sourceKind={kind}
+        messageIds={selected}
+      />
 
       <Composer
         chatId={chatId}

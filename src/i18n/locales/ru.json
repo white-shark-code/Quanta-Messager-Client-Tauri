@@ -92,6 +92,13 @@
     "repliesCount": "{{count}} ответов",
     "viewThread": "Смотреть ветку",
     "originalUnavailable": "Исходное сообщение недоступно",
+    "forward": "Переслать",
+    "forwardTo": "Кому переслать...",
+    "forwardedLabel": "Переслано",
+    "forwardSelected": "Переслать ({{count}})",
+    "forwardDone": "Сообщения пересланы",
+    "forwardSkipped": "Пропущено: {{count}}",
+    "forwardUndecryptable": "Нельзя переслать нерасшифрованное сообщение",
     "composer": {
       "unlockFirst": "Разблокируйте, чтобы отправлять сообщения",
       "unlockButton": "Разблокировать",
@@ -237,6 +244,7 @@
     }
   },
   "media": {
-    "load": "Загрузить"
+    "load": "Загрузить",
+    "openFullscreen": "Открыть на весь экран"
   }
 }

@@ -114,6 +114,13 @@
     "repliesCount": "{{count}} trả lời",
     "viewThread": "Xem chuỗi",
     "originalUnavailable": "Tin nhắn gốc không khả dụng",
+    "forward": "Chuyển tiếp",
+    "forwardTo": "Chuyển tiếp tới...",
+    "forwardedLabel": "Được chuyển tiếp",
+    "forwardSelected": "Chuyển tiếp ({{count}})",
+    "forwardDone": "Đã chuyển tiếp tin nhắn",
+    "forwardSkipped": "Đã bỏ qua {{count}}",
+    "forwardUndecryptable": "Không thể chuyển tiếp tin nhắn chưa giải mã",
     "composer": {
       "unlockFirst": "Mở khóa để gửi tin nhắn",
       "placeholder": "Nhập tin nhắn…",
@@ -213,6 +220,7 @@
     }
   },
   "media": {
-    "load": "Tải"
+    "load": "Tải",
+    "openFullscreen": "Mở toàn màn hình"
   }
 }

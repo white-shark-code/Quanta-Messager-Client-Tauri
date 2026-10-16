@@ -19,10 +19,16 @@ export interface ReplyRef {
   preview: string;
 }
 
+export interface ForwardRef {
+  fromChat: string;
+  fromMsg: string;
+}
+
 interface EnvelopeV1 {
   v: 1;
   text: string;
-  reply: ReplyRef;
+  reply?: ReplyRef | null;
+  forwarded?: ForwardRef | null;
 }
 
 /** Slice a preview to {@link REPLY_PREVIEW_LIMIT} chars. Never throws. */
@@ -48,38 +54,77 @@ export function encodeReplyBody(
 }
 
 /**
- * Split decrypted plaintext into `{ text, reply }`. Never throws:
- * non-JSON input or a structurally invalid envelope falls back to
- * `{ text: plaintext, reply: null }` (a plain pre-reply message, or a
- * message whose author typed literal JSON).
+ * Wrap `text` + forward origin into a v1 JSON envelope. The reply link is
+ * always `null` — forwarding drops it (see {@link stripForForward}).
  */
-export function decodeBody(plaintext: string): { text: string; reply: ReplyRef | null } {
+export function encodeForwardBody(text: string, origin: ForwardRef): string {
+  return JSON.stringify({ v: 1, text, reply: null, forwarded: { ...origin } });
+}
+
+/** Check a parsed `reply` value is a well-formed {@link ReplyRef}. */
+function isReplyRef(value: unknown): value is ReplyRef {
+  if (typeof value !== "object" || value === null) return false;
+  const r = value as Partial<ReplyRef>;
+  return typeof r.id === "string" && typeof r.sender === "string" && typeof r.preview === "string";
+}
+
+/** Check a parsed `forwarded` value is a well-formed {@link ForwardRef}. */
+function isForwardRef(value: unknown): value is ForwardRef {
+  if (typeof value !== "object" || value === null) return false;
+  const f = value as Partial<ForwardRef>;
+  return typeof f.fromChat === "string" && typeof f.fromMsg === "string";
+}
+
+/**
+ * Split decrypted plaintext into `{ text, reply, forwarded }`. Never throws:
+ * non-JSON input or a structurally invalid envelope falls back to
+ * `{ text: plaintext, reply: null, forwarded: null }` (a plain pre-reply
+ * message, or a message whose author typed literal JSON).
+ */
+export function decodeBody(plaintext: string): {
+  text: string;
+  reply: ReplyRef | null;
+  forwarded: ForwardRef | null;
+} {
   let parsed: unknown;
   try {
     parsed = JSON.parse(plaintext);
   } catch {
-    return { text: plaintext, reply: null };
+    return { text: plaintext, reply: null, forwarded: null };
   }
   if (typeof parsed !== "object" || parsed === null) {
-    return { text: plaintext, reply: null };
+    return { text: plaintext, reply: null, forwarded: null };
   }
   const env = parsed as Partial<EnvelopeV1>;
   if (env.v !== 1 || typeof env.text !== "string") {
-    return { text: plaintext, reply: null };
+    return { text: plaintext, reply: null, forwarded: null };
   }
-  // A v1 envelope without a `reply` key is a plain (non-reply) message —
-  // unwrap the text. But a PRESENT-yet-malformed `reply` means the payload
+  // A v1 envelope without a `reply`/`forwarded` key is a plain message —
+  // unwrap the text. But a PRESENT-yet-malformed value means the payload
   // isn't one of ours (e.g. user-typed JSON), so keep the raw body.
-  if (env.reply === undefined || env.reply === null) {
-    return { text: env.text, reply: null };
+  let reply: ReplyRef | null = null;
+  if (env.reply !== undefined && env.reply !== null) {
+    if (!isReplyRef(env.reply)) {
+      return { text: plaintext, reply: null, forwarded: null };
+    }
+    reply = { id: env.reply.id, sender: env.reply.sender, preview: env.reply.preview };
   }
-  const reply = env.reply as Partial<ReplyRef>;
-  if (
-    typeof reply.id !== "string" ||
-    typeof reply.sender !== "string" ||
-    typeof reply.preview !== "string"
-  ) {
-    return { text: plaintext, reply: null };
+  let forwarded: ForwardRef | null = null;
+  if (env.forwarded !== undefined && env.forwarded !== null) {
+    if (!isForwardRef(env.forwarded)) {
+      return { text: plaintext, reply: null, forwarded: null };
+    }
+    forwarded = { fromChat: env.forwarded.fromChat, fromMsg: env.forwarded.fromMsg };
   }
-  return { text: env.text, reply: { id: reply.id, sender: reply.sender, preview: reply.preview } };
+  return { text: env.text, reply, forwarded };
+}
+
+/**
+ * Strip the reply link before forwarding. The parent lives in another
+ * chat, so keeping it would dead-end the jump.
+ */
+export function stripForForward(parsed: { text: string; reply: ReplyRef | null }): {
+  text: string;
+} {
+  return { text: parsed.text };
 }
