@@ -6,7 +6,7 @@
 > Клиент E2E-зашифрованного мессенджера (Tauri + TypeScript + React).
 > PGP на стороне клиента через openpgp.js, zero-knowledge относительно сервера.
 
-**Status:** alpha (v0.1.0)
+**Status:** beta (v0.9.5-beta)
 **License:** MIT
 
 ---
