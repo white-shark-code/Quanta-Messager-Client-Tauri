@@ -16,9 +16,11 @@ import { MediaPreview } from "@/features/media/components/MediaPreview";
 export function MessageAttachments({
   messageId,
   kind = "private",
+  chatId,
 }: {
   messageId: string;
   kind?: "private" | "group";
+  chatId?: string;
 }): JSX.Element | null {
   const { data } = useQuery({
     queryKey: ["message-media", kind, messageId],
@@ -34,7 +36,12 @@ export function MessageAttachments({
   return (
     <Stack gap={4}>
       {items.map((att) => (
-        <MediaPreview key={att.id} attachment={att} kind={kind} />
+        <MediaPreview
+          key={att.id}
+          attachment={att}
+          kind={kind}
+          context={{ ...(chatId !== undefined ? { chatId } : {}), messageId }}
+        />
       ))}
     </Stack>
   );

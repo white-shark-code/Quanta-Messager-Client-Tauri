@@ -383,6 +383,122 @@ export async function writeDialogIndex(userId: string, chatIds: string[]): Promi
 }
 
 /* ------------------------------------------------------------------ *
+ * Media vault buffers (decrypted media at rest, ChaCha envelope)
+ * ------------------------------------------------------------------ */
+
+const MEDIA_DIR = "media";
+
+function mediaFilename(userId: string, mediaId: string): string {
+  return `${MEDIA_DIR}/${safeSegment(userId)}/${safeSegment(mediaId)}.qmed`;
+}
+
+function mediaIndexFilename(userId: string): string {
+  return `${MEDIA_DIR}/${safeSegment(userId)}/index.json`;
+}
+
+async function ensureMediaDir(userId: string): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    const base = await appDataDir();
+    const dir = await join(base, MEDIA_DIR, safeSegment(userId));
+    await mkdir(dir, { recursive: true });
+  } catch {
+    // best-effort; writeFile will surface a clearer error on failure
+  }
+}
+
+/**
+ * Read a raw media-vault blob `<app_data_dir>/media/<userId>/<mediaId>.qmed`.
+ * Browser fallback: `localStorage["quant-media-<userId>-<mediaId>"]`
+ * (note the ~5 MB quota — large attachments only persist under Tauri).
+ *
+ * @throws When the entry does not exist or is unreadable (caller treats
+ *   as a vault miss and falls back to network).
+ */
+export async function readMediaBuffer(userId: string, mediaId: string): Promise<Uint8Array> {
+  if (!isTauri()) {
+    const b64 = localStorage.getItem(`quant-media-${userId}-${mediaId}`);
+    if (b64 === null) {
+      throw new Error(`Media not found for ${userId}/${mediaId}`);
+    }
+    return base64ToBytes(b64);
+  }
+  return readFile(mediaFilename(userId, mediaId), { baseDir: BaseDirectory.AppData });
+}
+
+/**
+ * Atomically write a media-vault blob. Browser fallback base64-encodes
+ * into `localStorage` (may throw `QuotaExceededError` for large files —
+ * callers persist best-effort and ignore such failures).
+ */
+export async function writeMediaBuffer(
+  userId: string,
+  mediaId: string,
+  data: Uint8Array,
+): Promise<void> {
+  if (!isTauri()) {
+    localStorage.setItem(`quant-media-${userId}-${mediaId}`, bytesToBase64(data));
+    return;
+  }
+  await ensureMediaDir(userId);
+  await writeFile(mediaFilename(userId, mediaId), data, { baseDir: BaseDirectory.AppData });
+}
+
+/** Whether a vault entry exists for the media id. */
+export async function hasMedia(userId: string, mediaId: string): Promise<boolean> {
+  if (!isTauri()) {
+    return localStorage.getItem(`quant-media-${userId}-${mediaId}`) !== null;
+  }
+  return exists(mediaFilename(userId, mediaId), { baseDir: BaseDirectory.AppData });
+}
+
+/**
+ * Delete a vault entry. Idempotent no-op when missing.
+ */
+export async function deleteMediaFile(userId: string, mediaId: string): Promise<void> {
+  if (!isTauri()) {
+    localStorage.removeItem(`quant-media-${userId}-${mediaId}`);
+    return;
+  }
+  try {
+    const { remove } = await import("@tauri-apps/plugin-fs");
+    const base = await appDataDir();
+    const absolutePath = await join(base, mediaFilename(userId, mediaId));
+    await remove(absolutePath);
+  } catch {
+    // missing — fine
+  }
+}
+
+/**
+ * Read the unencrypted media index `media/<userId>/index.json`.
+ * Returns `[]` when absent or unparsable.
+ */
+export async function readMediaIndex(userId: string): Promise<string> {
+  if (!isTauri()) {
+    return localStorage.getItem(`quant-media-index-${userId}`) ?? "";
+  }
+  try {
+    const buf = await readFile(mediaIndexFilename(userId), { baseDir: BaseDirectory.AppData });
+    return new TextDecoder().decode(buf);
+  } catch {
+    return "";
+  }
+}
+
+/** Overwrite the media index file wholesale. */
+export async function writeMediaIndex(userId: string, json: string): Promise<void> {
+  if (!isTauri()) {
+    localStorage.setItem(`quant-media-index-${userId}`, json);
+    return;
+  }
+  await ensureMediaDir(userId);
+  await writeFile(mediaIndexFilename(userId), new TextEncoder().encode(json), {
+    baseDir: BaseDirectory.AppData,
+  });
+}
+
+/* ------------------------------------------------------------------ *
  * Dialog wrappers
  * ------------------------------------------------------------------ */
 

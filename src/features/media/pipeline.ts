@@ -26,9 +26,11 @@ import * as openpgp from "openpgp";
 
 import * as keyring from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
+import { useSessionStore } from "@/features/auth/sessionStore";
 
 import * as mediaApi from "./api";
 import { MAX_MEDIA_SIZE_BYTES } from "./constants";
+import { writeMediaVault } from "./vault";
 
 /**
  * Result of {@link encryptMedia}: the ciphertext + detached signature
@@ -137,6 +139,17 @@ export async function encryptAndUploadPrivate(
     mime_type: encrypted.mime,
     file_size: encrypted.size,
   });
+  // Own plaintext is already in hand — vault it straight away (no
+  // download needed later). Best-effort, never blocks the upload result.
+  const ownerId = useSessionStore.getState().user?.id;
+  if (ownerId !== undefined) {
+    void writeMediaVault(ownerId, {
+      mediaId: attachment.id,
+      plain: new Uint8Array(await file.arrayBuffer()),
+      mime: encrypted.mime,
+      chatId,
+    });
+  }
   return toUploadedMedia(attachment);
 }
 
@@ -161,6 +174,15 @@ export async function encryptAndUploadGroup(
     mime_type: encrypted.mime,
     file_size: encrypted.size,
   });
+  const ownerId = useSessionStore.getState().user?.id;
+  if (ownerId !== undefined) {
+    void writeMediaVault(ownerId, {
+      mediaId: attachment.id,
+      plain: new Uint8Array(await file.arrayBuffer()),
+      mime: encrypted.mime,
+      chatId,
+    });
+  }
   return toUploadedMedia(attachment);
 }
 

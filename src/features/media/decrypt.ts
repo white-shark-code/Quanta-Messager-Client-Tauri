@@ -16,8 +16,11 @@
  *   - **No UI coupling:** pure async functions returning `{ blob, url, mime }`.
  *     The component layer (TASK-073) is responsible for wiring revoke on
  *     unmount.
- *   - **No persistence:** blob URLs and `Blob` payloads live only for the
- *     current session; `clearBlobCache()` wipes them on lock / logout.
+ *   - **Vault persistence:** verified plaintext is additionally persisted
+ *     to the media vault (`./vault.ts`, ChaCha at rest) write-after-verify,
+ *     and reads are vault-first (offline-capable). The in-memory `Map`
+ *     stays as the session-speed layer; `clearBlobCache()` wipes RAM on
+ *     lock / logout while vault files survive for the next unlock.
  *   - **MVP sender trust:** the spec calls out using the local public key
  *     as the "sender" key for self-originated media. Cross-user verification
  *     (resolving the real sender's key from the roster) is deferred to a
@@ -29,9 +32,25 @@
 
 import * as keyring from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
+import { useSessionStore } from "@/features/auth/sessionStore";
 import { decodeWireBytes } from "@/lib/wire";
 
 import * as mediaApi from "./api";
+import { readMediaVault, writeMediaVault } from "./vault";
+
+/**
+ * Optional linkage for the media vault (decrypted bytes at rest).
+ * The vault key is the media id; chat/message linkage enables
+ * per-chat purge. Omit entirely to skip the vault (network only).
+ */
+export interface MediaVaultContext {
+  chatId?: string;
+  messageId?: string;
+}
+
+function vaultUserId(): string | undefined {
+  return useSessionStore.getState().user?.id;
+}
 
 /**
  * One cached media item.
@@ -99,7 +118,10 @@ export function revokeBlobUrl(mediaId: string): void {
  * @throws Whatever `mediaApi.downloadPrivateMedia` or `keyring.decryptFile`
  *         throw on transport / cryptographic failure (typed by the caller).
  */
-export async function downloadAndDecryptPrivate(mediaId: string): Promise<CachedMedia> {
+export async function downloadAndDecryptPrivate(
+  mediaId: string,
+  ctx?: MediaVaultContext,
+): Promise<CachedMedia> {
   const cached = blobCache.get(mediaId);
   if (cached !== undefined) {
     return cached;
@@ -108,6 +130,16 @@ export async function downloadAndDecryptPrivate(mediaId: string): Promise<Cached
   const keyringStore = useKeyringStore.getState();
   if (keyringStore.privateKey === null || keyringStore.publicKey === null) {
     throw new Error("Keys not loaded");
+  }
+
+  // Vault-first: verified plaintext from a previous view, no network
+  // and no PGP round-trip. Works offline.
+  const userId = vaultUserId();
+  if (userId !== undefined) {
+    const hit = await readMediaVault(userId, mediaId);
+    if (hit !== undefined) {
+      return cacheBytes(mediaId, hit.bytes, hit.mime);
+    }
   }
 
   const meta = await mediaApi.downloadPrivateMedia(mediaId);
@@ -127,6 +159,17 @@ export async function downloadAndDecryptPrivate(mediaId: string): Promise<Cached
     keyringStore.privateKey,
   );
 
+  // Write-after-verify: persist the checked plaintext best-effort.
+  if (userId !== undefined) {
+    void writeMediaVault(userId, {
+      mediaId,
+      plain: decrypted,
+      mime: meta.mime_type,
+      ...(ctx?.chatId !== undefined ? { chatId: ctx.chatId } : {}),
+      ...(ctx?.messageId !== undefined ? { messageId: ctx.messageId } : {}),
+    });
+  }
+
   return cacheBytes(mediaId, decrypted, meta.mime_type);
 }
 
@@ -134,7 +177,10 @@ export async function downloadAndDecryptPrivate(mediaId: string): Promise<Cached
  * Download + decrypt a group-chat media attachment. Same contract as
  * {@link downloadAndDecryptPrivate} but hits the group endpoint.
  */
-export async function downloadAndDecryptGroup(mediaId: string): Promise<CachedMedia> {
+export async function downloadAndDecryptGroup(
+  mediaId: string,
+  ctx?: MediaVaultContext,
+): Promise<CachedMedia> {
   const cached = blobCache.get(mediaId);
   if (cached !== undefined) {
     return cached;
@@ -143,6 +189,14 @@ export async function downloadAndDecryptGroup(mediaId: string): Promise<CachedMe
   const keyringStore = useKeyringStore.getState();
   if (keyringStore.privateKey === null || keyringStore.publicKey === null) {
     throw new Error("Keys not loaded");
+  }
+
+  const userId = vaultUserId();
+  if (userId !== undefined) {
+    const hit = await readMediaVault(userId, mediaId);
+    if (hit !== undefined) {
+      return cacheBytes(mediaId, hit.bytes, hit.mime);
+    }
   }
 
   const meta = await mediaApi.downloadGroupMedia(mediaId);
@@ -159,7 +213,40 @@ export async function downloadAndDecryptGroup(mediaId: string): Promise<CachedMe
     keyringStore.privateKey,
   );
 
+  if (userId !== undefined) {
+    void writeMediaVault(userId, {
+      mediaId,
+      plain: decrypted,
+      mime: meta.mime_type,
+      ...(ctx?.chatId !== undefined ? { chatId: ctx.chatId } : {}),
+      ...(ctx?.messageId !== undefined ? { messageId: ctx.messageId } : {}),
+    });
+  }
+
   return cacheBytes(mediaId, decrypted, meta.mime_type);
+}
+
+/**
+ * Vault-only peek: RAM cache, then ChaCha vault — never touches network
+ * and never decrypts. Used by previews to auto-render already-stored
+ * bytes without asking the user to press "load" for content that is
+ * already on disk. Returns `undefined` on any miss (locked keystore
+ * included) — the caller then shows the explicit load button.
+ */
+export async function peekVaultMedia(mediaId: string): Promise<CachedMedia | undefined> {
+  const cached = blobCache.get(mediaId);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const userId = vaultUserId();
+  if (userId === undefined) {
+    return undefined;
+  }
+  const hit = await readMediaVault(userId, mediaId);
+  if (hit === undefined) {
+    return undefined;
+  }
+  return cacheBytes(mediaId, hit.bytes, hit.mime);
 }
 
 /* ------------------------------------------------------------------ *

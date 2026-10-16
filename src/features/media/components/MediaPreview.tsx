@@ -16,7 +16,13 @@ import {
 } from "@mantine/core";
 import { IconDownload, IconFile } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import { downloadAndDecryptGroup, downloadAndDecryptPrivate, revokeBlobUrl } from "../decrypt";
+import {
+  downloadAndDecryptGroup,
+  downloadAndDecryptPrivate,
+  peekVaultMedia,
+  revokeBlobUrl,
+} from "../decrypt";
+import type { MediaVaultContext } from "../decrypt";
 import type { MediaAttachment } from "../model";
 
 /**
@@ -31,9 +37,11 @@ export const THUMB_MAX_H = 180;
 interface MediaPreviewProps {
   attachment: MediaAttachment;
   kind?: "private" | "group";
+  /** Vault linkage (chat/message) for per-chat purge accounting. */
+  context?: MediaVaultContext;
 }
 
-export function MediaPreview({ attachment, kind = "private" }: MediaPreviewProps) {
+export function MediaPreview({ attachment, kind = "private", context }: MediaPreviewProps) {
   const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,12 +54,34 @@ export function MediaPreview({ attachment, kind = "private" }: MediaPreviewProps
   const isImage = attachment.mime_type.startsWith("image/");
   const downloadFn = kind === "private" ? downloadAndDecryptPrivate : downloadAndDecryptGroup;
 
+  // Whether the vault peek settled. The explicit load button renders
+  // only after a negative peek — stored bytes must appear with no click.
+  const [checked, setChecked] = useState(false);
+
   // Revoke through the cache owner so the entry is evicted too:
   // revoking the URL alone would leave a dead `blob:` URL in
   // `blobCache`, served stale on the next mount (broken image).
   useEffect(() => {
     return () => {
       revokeBlobUrl(attachment.id);
+    };
+  }, [attachment.id]);
+
+  // Auto-render from local storage: vault hit (RAM, then ChaCha file)
+  // needs no network and no user gesture. Miss → fall through to the
+  // explicit load button below.
+  useEffect(() => {
+    let cancelled = false;
+    setChecked(false);
+    void peekVaultMedia(attachment.id).then((hit) => {
+      if (cancelled) return;
+      if (hit !== undefined) {
+        setUrl(hit.url);
+      }
+      setChecked(true);
+    });
+    return () => {
+      cancelled = true;
     };
   }, [attachment.id]);
 
@@ -62,7 +92,7 @@ export function MediaPreview({ attachment, kind = "private" }: MediaPreviewProps
     setError(null);
 
     try {
-      const { url: blobUrl } = await downloadFn(attachment.id);
+      const { url: blobUrl } = await downloadFn(attachment.id, context);
       setUrl(blobUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -166,9 +196,11 @@ export function MediaPreview({ attachment, kind = "private" }: MediaPreviewProps
             Download
           </Button>
         ) : (
-          <Button onClick={() => void handleClick()} variant="light">
-            {t("media.load")}
-          </Button>
+          checked && (
+            <Button onClick={() => void handleClick()} variant="light">
+              {t("media.load")}
+            </Button>
+          )
         )}
       </Group>
     </Paper>

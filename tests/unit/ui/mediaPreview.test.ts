@@ -9,11 +9,12 @@ import { MantineProvider } from "@mantine/core";
 import i18n from "@/i18n";
 import { MediaPreview, THUMB_MAX_W } from "@/features/media/components/MediaPreview";
 import type { MediaAttachment } from "@/features/media/model";
-import { downloadAndDecryptPrivate } from "@/features/media/decrypt";
+import { downloadAndDecryptPrivate, peekVaultMedia } from "@/features/media/decrypt";
 
 vi.mock("@/features/media/decrypt", () => ({
   downloadAndDecryptPrivate: vi.fn(),
   downloadAndDecryptGroup: vi.fn(),
+  peekVaultMedia: vi.fn(),
   revokeBlobUrl: vi.fn(),
 }));
 
@@ -142,11 +143,13 @@ describe("media/MediaPreview lightbox", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(peekVaultMedia).mockResolvedValue(undefined);
     testDoc().body.innerHTML = "";
   });
 
-  it("shows a Load button before the blob is fetched", () => {
+  it("shows a Load button before the blob is fetched", async () => {
     const { container, unmount } = mount(createElement(MediaPreview, { attachment: BMP }));
+    await flush();
     expect(container.textContent).toContain("Загрузить");
     expect(testDoc().querySelector('img[src="blob:thumb"]')).toBeNull();
     unmount();
@@ -155,6 +158,7 @@ describe("media/MediaPreview lightbox", () => {
   it("loads a size-capped thumbnail on click", async () => {
     mockBlob();
     const { container, unmount } = mount(createElement(MediaPreview, { attachment: BMP }));
+    await flush();
     click(loadButton(container));
     await flush();
     const img = testDoc().querySelector('img[src="blob:thumb"]');
@@ -167,6 +171,7 @@ describe("media/MediaPreview lightbox", () => {
   it("opens a fullscreen dialog on thumbnail click and closes it", async () => {
     mockBlob();
     const { container, unmount } = mount(createElement(MediaPreview, { attachment: BMP }));
+    await flush();
     click(loadButton(container));
     await flush();
     expect(testDoc().querySelector('[role="dialog"]')).toBeNull();
@@ -181,6 +186,20 @@ describe("media/MediaPreview lightbox", () => {
     // Exit transition unmounts the portal asynchronously.
     await settle(300);
     expect(testDoc().querySelector('[role="dialog"]')).toBeNull();
+    unmount();
+  });
+
+  it("auto-renders the thumbnail from vault storage without a click", async () => {
+    vi.mocked(peekVaultMedia).mockResolvedValue({
+      blob: undefined as unknown as never,
+      url: "blob:vault",
+      mime: "image/bmp",
+    });
+    const { unmount } = mount(createElement(MediaPreview, { attachment: BMP }));
+    await flush();
+    expect(testDoc().querySelector('img[src="blob:vault"]')).not.toBeNull();
+    // No network download was triggered by the auto-render.
+    expect(downloadAndDecryptPrivate).not.toHaveBeenCalled();
     unmount();
   });
 

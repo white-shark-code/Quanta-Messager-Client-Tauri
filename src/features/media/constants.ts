@@ -11,3 +11,10 @@
 
 /** 50 MB — matches the backend `MAX_MEDIA_SIZE_BYTES` default. */
 export const MAX_MEDIA_SIZE_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Media-vault quota per user (decrypted bytes at rest). LRU eviction
+ * kicks in when a write would exceed it. 300 MB ≈ six max-size
+ * attachments — generous for chat media without risking disk abuse.
+ */
+export const MEDIA_VAULT_QUOTA_BYTES = 300 * 1024 * 1024;

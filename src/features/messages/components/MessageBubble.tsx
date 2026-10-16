@@ -206,7 +206,7 @@ export function MessageBubble({
           <Text size="sm">
             {text ?? (decrypting ? t("messages.decrypting") : t("messages.locked"))}
           </Text>
-          {!pending && <MessageAttachments messageId={message.id} kind={kind} />}
+          {!pending && <MessageAttachments messageId={message.id} kind={kind} chatId={chatId} />}
           <Group gap={4} justify="space-between">
             <Text size="xs" c="dimmed">
               {time.format("HH:mm")}
