@@ -3,6 +3,10 @@ DIST_DIR := dist
 DEPLOY_DIR := deploy/stage
 PKG_DIR := dist-pkg
 BACKEND_URL ?= http://127.0.0.1:8000
+# Privilege escalation for the deps-* targets. Override on systems
+# without sudo: `make deps-pacman SUDO=doas`, or run make as root with
+# `make deps-pacman SUDO=` (empty). Auto-detects root and drops sudo.
+SUDO ?= $(shell if [ "$$(id -u)" = "0" ]; then echo ""; elif command -v sudo >/dev/null 2>&1; then echo "sudo"; elif command -v doas >/dev/null 2>&1; then echo "doas"; else echo "sudo"; fi)
 
 .DEFAULT_GOAL := help
 
@@ -57,17 +61,20 @@ aur-check: ## Validate PKGBUILD with namcap (best-effort)
 
 deps-apt: ## Install Tauri build deps on Debian/Ubuntu (apt)
 	@echo "Installing Tauri build dependencies (apt)..."
-	sudo apt-get update
-	sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+	$(SUDO) apt-get update
+	$(SUDO) apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
 deps-dnf: ## Install Tauri build deps on Fedora (dnf)
 	@echo "Installing Tauri build dependencies (dnf)..."
-	sudo dnf install -y webkit2gtk4.1-devel openssl-devel curl wget file libxdo-devel libayatana-appindicator-gtk3-devel librsvg2-devel
+	$(SUDO) dnf install -y webkit2gtk4.1-devel openssl-devel curl wget file libxdo-devel libayatana-appindicator-gtk3-devel librsvg2-devel
 	@echo "Note: install Rust via rustup (https://rustup.rs) if not already installed."
 
 deps-pacman: ## Install Tauri build deps on Arch Linux (pacman)
 	@echo "Installing Tauri build dependencies (pacman)..."
-	sudo pacman -S --needed webkit2gtk-4.1 base-devel curl wget file libxdo openssl libayatana-appindicator librsvg nodejs-lts npm rust
+	$(SUDO) pacman -Sy
+	$(SUDO) pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl libayatana-appindicator librsvg nodejs npm rust
+	@echo "Trying optional libxdo (missing on some Artix repos, non-fatal)..."
+	-$(SUDO) pacman -S --needed libxdo
 
 clean: ## Remove build, stage and packaging artifacts
 	rm -rf $(DIST_DIR) $(DEPLOY_DIR) $(PKG_DIR)
