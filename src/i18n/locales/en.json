@@ -245,6 +245,12 @@
   },
   "media": {
     "load": "Load",
-    "openFullscreen": "Open fullscreen"
+    "openFullscreen": "Open fullscreen",
+    "play": "Play",
+    "pause": "Pause",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "seek": "Seek",
+    "fullscreen": "Fullscreen"
   }
 }

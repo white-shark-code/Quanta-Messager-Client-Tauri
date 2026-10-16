@@ -221,6 +221,12 @@
   },
   "media": {
     "load": "Tải",
-    "openFullscreen": "Mở toàn màn hình"
+    "openFullscreen": "Mở toàn màn hình",
+    "play": "Phát",
+    "pause": "Tạm dừng",
+    "mute": "Tắt tiếng",
+    "unmute": "Bật tiếng",
+    "seek": "Tua",
+    "fullscreen": "Toàn màn hình"
   }
 }

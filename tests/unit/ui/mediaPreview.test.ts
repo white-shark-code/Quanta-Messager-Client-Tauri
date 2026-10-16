@@ -8,6 +8,7 @@ import { MantineProvider } from "@mantine/core";
 
 import i18n from "@/i18n";
 import { MediaPreview, THUMB_MAX_W } from "@/features/media/components/MediaPreview";
+import { formatMediaTime } from "@/features/media/time";
 import type { MediaAttachment } from "@/features/media/model";
 import { downloadAndDecryptPrivate, peekVaultMedia } from "@/features/media/decrypt";
 
@@ -201,6 +202,38 @@ describe("media/MediaPreview lightbox", () => {
     // No network download was triggered by the auto-render.
     expect(downloadAndDecryptPrivate).not.toHaveBeenCalled();
     unmount();
+  });
+
+  it("video attachment auto-renders a player thumbnail and opens a video dialog", async () => {
+    vi.mocked(peekVaultMedia).mockResolvedValue({
+      blob: undefined as unknown as never,
+      url: "blob:vid",
+      mime: "video/mp4",
+    });
+    const mp4: MediaAttachment = { ...BMP, id: "m-vid", mime_type: "video/mp4" };
+    const { unmount } = mount(createElement(MediaPreview, { attachment: mp4 }));
+    await flush();
+    expect(testDoc().querySelector('video[src="blob:vid"]')).not.toBeNull();
+    click(testDoc().querySelector('[role="button"][aria-label]'));
+    await settle(50);
+    const dialog = testDoc().querySelector('[role="dialog"]');
+    expect(dialog?.querySelector('video[src="blob:vid"]')).not.toBeNull();
+    // Player controls: seek slider is present (play toggle aria-label
+    // is locale-dependent — covered by E2E instead).
+    expect(dialog?.querySelector('[role="slider"]')).not.toBeNull();
+    click(dialog?.querySelector('[aria-label="Close"]') ?? null);
+    await settle(300);
+    expect(testDoc().querySelector('[role="dialog"]')).toBeNull();
+    unmount();
+  });
+
+  it("formatMediaTime formats player timestamps", () => {
+    const fmt: (totalSeconds: number) => string = formatMediaTime;
+    expect(fmt(0)).toBe("0:00");
+    expect(formatMediaTime(2)).toBe("0:02");
+    expect(formatMediaTime(65)).toBe("1:05");
+    expect(formatMediaTime(Number.POSITIVE_INFINITY)).toBe("0:00");
+    expect(formatMediaTime(-5)).toBe("0:00");
   });
 
   it("non-image attachments render a download card without a lightbox", () => {

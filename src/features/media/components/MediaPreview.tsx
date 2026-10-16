@@ -14,7 +14,7 @@ import {
   Text,
   Tooltip,
 } from "@mantine/core";
-import { IconDownload, IconFile } from "@tabler/icons-react";
+import { IconDownload, IconFile, IconPlayerPlay } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import {
   downloadAndDecryptGroup,
@@ -24,6 +24,9 @@ import {
 } from "../decrypt";
 import type { MediaVaultContext } from "../decrypt";
 import type { MediaAttachment } from "../model";
+import { formatMediaTime } from "../time";
+import { LIGHTBOX_HEADER_H, PLAYER_CONTROLS_H, VideoPlayer } from "./VideoPlayer";
+import { useLightboxFit } from "../useLightboxFit";
 
 /**
  * Thumbnail bounds: message-list previews never exceed this box,
@@ -41,6 +44,62 @@ interface MediaPreviewProps {
   context?: MediaVaultContext;
 }
 
+/**
+ * Fullscreen media area: no scroll, ever. Cover mode bleeds to the
+ * viewport edges; contain mode centers the fitted box.
+ */
+function LightboxBody({
+  isVideo,
+  url,
+  mime,
+  natural,
+}: {
+  isVideo: boolean;
+  url: string;
+  mime: string;
+  natural: { w: number; h: number };
+}): JSX.Element {
+  const fitted = useLightboxFit(
+    natural.w,
+    natural.h,
+    LIGHTBOX_HEADER_H + (isVideo ? PLAYER_CONTROLS_H : 0),
+  );
+
+  if (fitted.cover) {
+    const coverStyle = {
+      width: "100vw",
+      height: "100dvh",
+      objectFit: "cover" as const,
+      display: "block" as const,
+    };
+    return isVideo ? (
+      <VideoPlayer src={url} mediaStyle={coverStyle} controlsOverlay />
+    ) : (
+      <Image src={url} alt={mime} style={coverStyle} />
+    );
+  }
+
+  return (
+    <Center style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+      {isVideo ? (
+        <div style={{ width: fitted.width, maxWidth: "100%" }}>
+          <VideoPlayer
+            src={url}
+            mediaStyle={{ width: "100%", display: "block", backgroundColor: "black" }}
+          />
+        </div>
+      ) : (
+        <Image
+          src={url}
+          alt={mime}
+          fit="contain"
+          style={{ width: fitted.width, height: fitted.height }}
+        />
+      )}
+    </Center>
+  );
+}
+
 export function MediaPreview({ attachment, kind = "private", context }: MediaPreviewProps) {
   const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
@@ -52,11 +111,18 @@ export function MediaPreview({ attachment, kind = "private", context }: MediaPre
   const fileName = `file-${attachment.id}.${attachment.mime_type.split("/")[1] ?? "bin"}`;
 
   const isImage = attachment.mime_type.startsWith("image/");
+  const isVideo = attachment.mime_type.startsWith("video/");
   const downloadFn = kind === "private" ? downloadAndDecryptPrivate : downloadAndDecryptGroup;
+  // Known after the thumbnail video fires `loadedmetadata`; shown as
+  // an overlay badge and inside the player.
+  const [duration, setDuration] = useState(0);
 
   // Whether the vault peek settled. The explicit load button renders
   // only after a negative peek — stored bytes must appear with no click.
   const [checked, setChecked] = useState(false);
+  // Intrinsic media size for the fullscreen fit policy (filled by the
+  // thumbnail's load/metadata events; zeros until known).
+  const [natural, setNatural] = useState({ w: 0, h: 0 });
 
   // Revoke through the cache owner so the entry is evicted too:
   // revoking the URL alone would leave a dead `blob:` URL in
@@ -114,7 +180,7 @@ export function MediaPreview({ attachment, kind = "private", context }: MediaPre
       </Text>
     );
 
-  if (isImage && url) {
+  if ((isImage || isVideo) && url) {
     return (
       <>
         <Box
@@ -127,18 +193,87 @@ export function MediaPreview({ attachment, kind = "private", context }: MediaPre
           }}
           style={{ cursor: "zoom-in", maxWidth: THUMB_MAX_W }}
         >
-          <AspectRatio ratio={4 / 3} maw={THUMB_MAX_W} mah={THUMB_MAX_H}>
-            <Image src={url} alt={attachment.mime_type} radius="md" fit="contain" />
-          </AspectRatio>
+          {isVideo ? (
+            <Box style={{ position: "relative" }}>
+              <video
+                src={url}
+                preload="metadata"
+                muted
+                playsInline
+                onLoadedMetadata={(e) => {
+                  setDuration(e.currentTarget.duration);
+                  setNatural({
+                    w: e.currentTarget.videoWidth,
+                    h: e.currentTarget.videoHeight,
+                  });
+                }}
+                style={{ width: "100%", maxHeight: THUMB_MAX_H, backgroundColor: "black" }}
+              />
+              <Center
+                style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.25)" }}
+              >
+                <ActionIcon variant="filled" size="xl" radius="xl" aria-hidden tabIndex={-1}>
+                  <IconPlayerPlay size={20} />
+                </ActionIcon>
+              </Center>
+              {duration > 0 && (
+                <Text
+                  size="xs"
+                  c="white"
+                  style={{
+                    position: "absolute",
+                    right: 6,
+                    bottom: 6,
+                    backgroundColor: "rgba(0,0,0,0.65)",
+                    borderRadius: 4,
+                    padding: "0 4px",
+                  }}
+                >
+                  {formatMediaTime(duration)}
+                </Text>
+              )}
+            </Box>
+          ) : (
+            <AspectRatio ratio={4 / 3} maw={THUMB_MAX_W} mah={THUMB_MAX_H}>
+              <Image
+                src={url}
+                alt={attachment.mime_type}
+                radius="md"
+                fit="contain"
+                onLoad={(e) => {
+                  setNatural({
+                    w: e.currentTarget.naturalWidth,
+                    h: e.currentTarget.naturalHeight,
+                  });
+                }}
+              />
+            </AspectRatio>
+          )}
         </Box>
         <Modal
           opened={lightbox}
           onClose={() => setLightbox(false)}
           fullScreen
           withCloseButton={false}
-          styles={{ body: { height: "calc(100% - 52px)" } }}
+          styles={{
+            content: {
+              height: "100dvh",
+              maxHeight: "100dvh",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            },
+            body: {
+              flex: 1,
+              minHeight: 0,
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              padding: 0,
+            },
+          }}
         >
-          <Group justify="space-between" mb="xs">
+          <Group justify="space-between" mb={0} px="sm" pt="xs" style={{ flexShrink: 0 }}>
             <Text size="sm" c="dimmed">
               {attachment.mime_type}
             </Text>
@@ -161,14 +296,7 @@ export function MediaPreview({ attachment, kind = "private", context }: MediaPre
               />
             </Group>
           </Group>
-          <Center h="100%">
-            <Image
-              src={url}
-              alt={attachment.mime_type}
-              fit="contain"
-              style={{ maxWidth: "100%", maxHeight: "100%" }}
-            />
-          </Center>
+          <LightboxBody isVideo={isVideo} url={url} mime={attachment.mime_type} natural={natural} />
         </Modal>
       </>
     );
@@ -177,7 +305,7 @@ export function MediaPreview({ attachment, kind = "private", context }: MediaPre
   return (
     <Paper withBorder p="sm" maw={300}>
       <Group>
-        <IconFile size={24} />
+        {isVideo ? <IconPlayerPlay size={24} /> : <IconFile size={24} />}
         <div style={{ flex: 1 }}>
           <Text size="sm" fw={500}>
             {attachment.mime_type}
