@@ -1,0 +1,64 @@
+# Maintainer: Quant Messenger Team <https://github.com/white-shark-code/Quanta-Messager-Client-Tauri>
+# AUR source package for the Tauri desktop app.
+# The `make aur` target runs `makepkg --printsrcinfo` + `makepkg -s` inside deploy/arch/.
+
+pkgname=quant-messenger
+# pkgver mapping: package.json / Cargo.toml / tauri.conf.json all say "0.9.5-beta",
+# but pkgver must NOT contain '-' (it is the pkgver-pkgrel separator; allowed chars
+# are alphanumerics plus '.', '_' and '+'). Hence '-' -> '_' here: 0.9.5-beta => 0.9.5_beta.
+# The git tag keeps the upstream spelling with '-', reconstructed below via ${pkgver//_/-}.
+pkgver=0.9.5_beta
+pkgrel=1
+pkgdesc='Secure E2E-encrypted messaging client (Tauri desktop app)'
+arch=('x86_64')
+url='https://github.com/white-shark-code/Quanta-Messager-Client-Tauri'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'openssl' 'libayatana-appindicator' 'librsvg' 'hicolor-icon-theme')
+makedepends=('nodejs-lts' 'npm' 'rust' 'cargo' 'base-devel' 'curl' 'file' 'libxdo')
+optdepends=('xdg-utils: open links and files in default applications'
+            'libnotify: desktop notification daemon support')
+# NOTE: no quant-messenger-bin variant exists (and none is provided here) because
+# upstream publishes no GitHub release artifacts yet — there is nothing for a -bin
+# package to download. If standalone .deb/.AppImage artifacts appear later, a -bin
+# split can be added alongside this source package.
+# Tag pinning: the tag must exist upstream and follows our `v<package.json version>`
+# scheme (e.g. v0.9.5-beta). On a new release: bump pkgver above (transliterating any
+# '-' to '_'), the #tag= fragment below resolves back to the '-' spelling
+# automatically, then regenerate .SRCINFO via `makepkg --printsrcinfo` (the Makefile
+# does this; do NOT commit a hand-written .SRCINFO).
+source=("git+https://github.com/white-shark-code/Quanta-Messager-Client-Tauri.git#tag=v${pkgver//_/-}")
+sha256sums=('SKIP')
+
+build() {
+  cd "${srcdir}/Quanta-Messager-Client-Tauri" || exit 1
+  # Keep the npm cache inside the build dir so $HOME stays clean on build machines.
+  export npm_config_cache="${srcdir}/npm-cache"
+  mkdir -p "${npm_config_cache}"
+  npm ci
+  # Stock Tauri release build (no CARGO_PROFILE_* overrides on purpose).
+  # NOTE: the first build compiles the whole Rust dependency tree and takes ~10+ min.
+  npm run build:tauri
+}
+
+package() {
+  cd "${srcdir}/Quanta-Messager-Client-Tauri" || exit 1
+  # Binary name source: src-tauri/tauri.conf.json sets no `mainBinaryName`,
+  # so the output binary is named after Cargo.toml [package] name = "quant-messenger"
+  # at src-tauri/target/release/quant-messenger.
+  install -Dm755 "src-tauri/target/release/quant-messenger" "${pkgdir}/usr/bin/quant-messenger"
+  # Icon: src-tauri/icons/icon.png is natively 512x512, so it is installed as-is
+  # (no downscaling needed) as the hicolor 512x512 app icon.
+  install -Dm644 "src-tauri/icons/icon.png" "${pkgdir}/usr/share/icons/hicolor/512x512/apps/quant-messenger.png"
+  install -Dm644 /dev/null "${pkgdir}/usr/share/applications/quant-messenger.desktop"
+  cat > "${pkgdir}/usr/share/applications/quant-messenger.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Quant Messenger
+Comment=Secure E2E-encrypted messaging client
+Exec=/usr/bin/quant-messenger
+Icon=quant-messenger
+Categories=Network;InstantMessaging;
+Terminal=false
+StartupWMClass=Quant Messenger
+EOF
+}

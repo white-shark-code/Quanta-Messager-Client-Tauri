@@ -1,0 +1,104 @@
+# =============================================================================
+# quant.conf.template — nginx server block for the Quant SPA + FastAPI backend.
+#
+# WHAT THIS IS:
+#   Template for the public web entrypoint. nginx serves the built React SPA
+#   (react-router, Vite output in `dist/`) as the location-root and
+#   reverse-proxies the FastAPI API (REST + WebSocket) to the backend.
+#
+# HOW THE MAKEFILE RENDERS IT:
+#   The stage target copies this template to /etc/nginx/sites-available/quant
+#   (or sites-enabled, per host layout) with sed replacing the literal
+#   placeholder ${BACKEND_URL} by the stage-time value, e.g.:
+#     sed 's|\${BACKEND_URL}|http://127.0.0.1:8000|g' \
+#       deploy/nginx/quant.conf.template > /etc/nginx/sites-available/quant
+#   Default upstream when no override is given: http://127.0.0.1:8000.
+#   DO NOT expand ${BACKEND_URL} by hand — keep it literal in this template.
+#   All other $variables ($uri, $host, $http_upgrade, ...) are real nginx
+#   variables and must be left untouched by sed.
+#
+# MANUAL STEPS (after rendering):
+#   1. sudo nginx -t            # validate config syntax
+#   2. sudo systemctl reload nginx
+#
+# CERTBOT NOTE:
+#   Get TLS via: sudo certbot --nginx -d example.com
+#   Certbot will insert its own managed `listen 443 ssl;` block below.
+#   See the commented 443 example in the server block.
+# =============================================================================
+
+server {
+    listen 80;
+    # Replace "_" with your real hostname(s), e.g. `server_name quant.example.com;`.
+    server_name _;
+
+    # Certbot-managed TLS example (uncomment/fill after `certbot --nginx`):
+    # listen 443 ssl;
+    # ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    # include /etc/letsencrypt/options-ssl-nginx.conf;
+    # ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Must match the Makefile DEST staging path (frontend `dist/` is rsynced here).
+    root /var/www/quant/dist;
+    index index.html;
+
+    # Uploads: media attachments up to 50 MB plus multipart/JSON envelope
+    # overhead, so allow 55 MB before nginx returns 413.
+    client_max_body_size 55m;
+
+    # Minimal security headers for all responses (incl. static files).
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Save bandwidth on text assets; images/fonts are already compressed.
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript application/xml+rss text/xml text/javascript image/svg+xml;
+    gzip_min_length 1024;
+
+    # --- Realtime WebSocket (exact match wins over the API regex below). ---
+    # Persistent socket (/event/ws?token=...): idle for long stretches between
+    # events, so keep a long read timeout or nginx (default 60s) will drop it
+    # while the backend still holds the connection open.
+    location = /event/ws {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    # --- Backend API (REST). ---
+    # Covers every prefix used by the frontend (verified against src/):
+    #   /auth/*, /users/*, /messages/*, /group-messages/*, /event/* (REST),
+    #   /push/*, /meta.
+    # NOTE (best-effort): /health is proxied too but NO "/health" string was
+    # found in src/ — kept so load-balancer/uptime checks hit the backend.
+    location ~ ^/(auth|users|messages|group-messages|event|push|meta|health)(/|$) {
+        proxy_pass ${BACKEND_URL};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Vite hashed assets (dist/assets/*): content hash in filename, safe to
+    # cache aggressively; a new build emits new filenames.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # SPA fallback: react-router renders client-side, so direct deep links
+    # (e.g. /chats/:id) or refreshes must serve index.html instead of 404 —
+    # the router then resolves the route in the browser.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
