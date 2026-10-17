@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Button, Center, Group, Loader, Stack } from "@mantine/core";
 import { IconAlertCircle, IconArrowLeft } from "@tabler/icons-react";
@@ -22,6 +22,7 @@ import { usePrivateMessages } from "@/features/messages/queries";
 import { useReplyCounts } from "@/features/messages/useReplyCounts";
 import { ApiError, toUserMessage } from "@/infra/error";
 import { useUserPublicKey } from "@/features/users/queries";
+import { useChatScroll } from "@/lib/useChatScroll";
 
 /**
  * For a 1:1 dialog, the peer is whichever of `user0` / `user1` isn't us.
@@ -77,8 +78,12 @@ export function ChatRoute(): JSX.Element | null {
   // — we treat the lookup as done.
   const peerKeyLoading = peerKey.data === undefined && peerKey.isFetching && !peerLookup404;
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+
+  // Unified list scroll (Task 2): sticks to the bottom only when the user
+  // was already near it, preserves the viewport offset when earlier
+  // messages are prepended, and routes thread jumps through the hook.
+  const scroll = useChatScroll({ resetKey: chatId, itemCount: messages?.items.length ?? 0 });
 
   // Reply-thread panel (Track D): opened by Track C's reply-quote click
   // via `openThread(messageId)` (`thread:open` window event).
@@ -120,10 +125,6 @@ export function ChatRoute(): JSX.Element | null {
       cancelled = true;
     };
   }, [chatId, currentUser?.id, kind, queryClient]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // Reply counts for the "N replies" badges, computed once per list (not
   // per bubble). Must stay above the early returns (stable hook order).
@@ -183,9 +184,24 @@ export function ChatRoute(): JSX.Element | null {
         <strong>{chat?.name ?? "Chat"}</strong>
       </Group>
 
-      <Stack gap="xs" style={{ flex: 1, overflowY: "auto", padding: "0 16px" }}>
+      <Stack
+        gap="xs"
+        ref={scroll.containerRef}
+        onScroll={scroll.onScroll}
+        style={{ flex: 1, overflowY: "auto", padding: "0 16px" }}
+      >
         {hasNextPage === true && (
-          <Button variant="subtle" size="xs" onClick={() => void fetchNextPage()} m="sm">
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={() => {
+              // Snapshot the viewport first: the hook restores the offset
+              // once the earlier page lands instead of jumping to bottom.
+              scroll.beginPrepend();
+              void fetchNextPage();
+            }}
+            m="sm"
+          >
             Load earlier messages
           </Button>
         )}
@@ -200,7 +216,7 @@ export function ChatRoute(): JSX.Element | null {
             kind={kind}
           />
         ))}
-        <div ref={messagesEndRef} />
+        <div ref={scroll.bottomAnchorRef} />
       </Stack>
 
       {(peerMissingKey || peerLookup404) && (
@@ -257,6 +273,7 @@ export function ChatRoute(): JSX.Element | null {
         kind={kind}
         openedId={threadId}
         onClose={() => setThreadId(null)}
+        onJump={scroll.jumpToId}
       />
     </Stack>
   );

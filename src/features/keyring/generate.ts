@@ -3,12 +3,23 @@
  * keystore on disk) and `tauriBridge` (filesystem dialogs).
  *
  * Design constraints (see `docs/design.md` §5.1, §5.2, §9.2):
- *   - **No React.** This module is called from `SetupKeyRoute` and any
- *     future onboarding flow; keeping the side-effectful work here
- *     keeps the component a thin render shell.
- *   - **All writes are wrapped in `writeKeystore` first** so a crash
- *     during the public-key upload step can't strand us with a key on
- *     the server but no way to decrypt incoming messages.
+ *   - **No React.** This module is called from `SetupKeyRoute`,
+ *     `CreateKeystoreRoute` and any future onboarding flow; keeping
+ *     the side-effectful work here keeps the components thin.
+ *   - **Server → disk order.** Phase A (`prepareGeneratedPair` /
+ *     `prepareImportedPair`) builds the PGP pair purely in memory with
+ *     NO disk writes. The route then uploads the public key via
+ *     `changePublicKey`, and only after the server accepts it Phase B
+ *     (`persistPreparedPair`) writes the keystore (`writeKeystore` +
+ *     `upsertIndexEntry` + in-memory `setKeys`). A network failure
+ *     during upload therefore leaves no `.qks` on disk, and the
+ *     silent resume flag (`auth/onboardingPending`, set before Phase A
+ *     and cleared after Phase B) routes the next login back to key
+ *     generation instead of `/chats`.
+ *   - If the server accepted a key whose local pair was subsequently
+ *     lost, we deliberately generate a fresh pair over it (traffic
+ *     encrypted to the lost key is unrecoverable — accepted trade-off,
+ *     product decision 1.3).
  *   - The access token is captured at the moment of key creation —
  *     `sessionStore` intentionally doesn't carry it past a reload, so
  *     we read it from `queries.getAccessToken()` while it's still hot.
@@ -39,6 +50,157 @@ function generateDialogKeyB64(): string {
     binary += String.fromCharCode(byte);
   }
   return btoa(binary);
+}
+
+/**
+ * In-memory result of Phase A: everything Phase B needs to persist the
+ * keystore after the server has accepted the public key. Contains
+ * secrets — keep in component state only, never in storage, and drop
+ * it once Phase B succeeds (or the flow is abandoned).
+ */
+export interface PreparedKeyMaterial {
+  publicKeyArmored: string;
+  privateKeyArmored: string;
+  fingerprint: string;
+  /** Freshly minted dialog-store key (persisted verbatim by Phase B). */
+  dialogKey: string;
+  /**
+   * Effective PGP passphrase that unlocks `privateKeyArmored`
+   * (already resolved: `undefined` input → `""`, i.e. unencrypted key
+   * packet per RFC 9580 §5.1). Passed to `setKeys`, NOT to disk
+   * encryption — the keystore passphrase stays a separate argument.
+   */
+  pgpPassphrase: string;
+}
+
+function requireOnboardingSession(caller: string): { userId: string; accessToken: string } {
+  const user = useSessionStore.getState().user;
+  const accessToken = getAccessToken();
+  if (user === null) {
+    throw new Error(`${caller}: no user in sessionStore`);
+  }
+  if (accessToken === null) {
+    throw new Error(`${caller}: no access token captured from login`);
+  }
+  return { userId: user.id, accessToken };
+}
+
+/**
+ * Phase A (generate): create a fresh PGP pair purely in memory.
+ *
+ * No disk writes, no index writes, no store writes — the caller uploads
+ * `prepared.publicKeyArmored` via `changePublicKey` first and calls
+ * `persistPreparedPair` only on success, so the same `prepared` value
+ * can be retried after a network failure without regenerating.
+ */
+export async function prepareGeneratedPair(
+  userEmail: string,
+  pgpPassphrase: string | undefined,
+  algorithm: KeyAlgorithm = "ecc",
+): Promise<PreparedKeyMaterial> {
+  requireOnboardingSession("prepareGeneratedPair");
+
+  // OpenPGP accepts an empty passphrase to mean "do not encrypt this
+  // key" (RFC 9580 §5.1). Pass through whatever the caller chose —
+  // including an empty string — verbatim.
+  const effectivePgp = pgpPassphrase ?? "";
+  const pair = await keyring.generateKeyPair(
+    { name: userEmail.split("@")[0] ?? userEmail, email: userEmail },
+    effectivePgp,
+    algorithm,
+  );
+  const fingerprint = await keyring.fingerprintOf(pair.publicKeyArmored);
+  return {
+    publicKeyArmored: pair.publicKeyArmored,
+    privateKeyArmored: pair.privateKeyArmored,
+    fingerprint,
+    dialogKey: generateDialogKeyB64(),
+    pgpPassphrase: effectivePgp,
+  };
+}
+
+/**
+ * Phase A (import): validate an existing ASCII-armored private key
+ * purely in memory.
+ *
+ * Fails fast on invalid armor / wrong passphrase before anything is
+ * uploaded or written. Like the generate path, the returned `prepared`
+ * value survives an upload failure and can be retried verbatim.
+ */
+export async function prepareImportedPair(
+  armoredPrivate: string,
+  armoredPublic: string,
+  passphrase: string,
+): Promise<PreparedKeyMaterial> {
+  requireOnboardingSession("prepareImportedPair");
+
+  const valid = await isValidArmoredPrivateKey(armoredPrivate, passphrase);
+  if (!valid) {
+    throw new Error("Invalid private key or wrong passphrase");
+  }
+
+  const fingerprint = await keyring.fingerprintOf(armoredPublic);
+  return {
+    publicKeyArmored: armoredPublic,
+    privateKeyArmored: armoredPrivate,
+    fingerprint,
+    dialogKey: generateDialogKeyB64(),
+    pgpPassphrase: passphrase,
+  };
+}
+
+/**
+ * Phase B: persist a Phase-A pair to the encrypted keystore AFTER the
+ * server has accepted the public key.
+ *
+ * Writes the keystore, upserts the index entry, and pushes the parsed
+ * keys into `keyringStore` + session fingerprint. Overwrites any
+ * previous keystore for this user (server-accepted-but-locally-lost
+ * pairs are replaced by design, decision 1.3).
+ */
+export async function persistPreparedPair(
+  userEmail: string,
+  keystorePassphrase: string,
+  prepared: PreparedKeyMaterial,
+): Promise<void> {
+  const { userId, accessToken } = requireOnboardingSession("persistPreparedPair");
+  if (keystorePassphrase.length === 0) {
+    throw new Error("persistPreparedPair: keystore passphrase must not be empty");
+  }
+
+  const payload: KeystorePayload = {
+    version: 1,
+    user: { id: userId, email: userEmail },
+    accessToken,
+    privateKeyArmored: prepared.privateKeyArmored,
+    publicKeyArmored: prepared.publicKeyArmored,
+    fingerprint: prepared.fingerprint,
+    dialogKey: prepared.dialogKey,
+  };
+
+  await writeKeystore(userId, payload, keystorePassphrase);
+  // Make the freshly written keystore discoverable from the index —
+  // without this, the next cold-start login screen would not list this
+  // user in the device picker (and `hasKeystore(userId)` would be the
+  // only way to know, which is per-user and not user-picker-friendly).
+  await upsertIndexEntry({
+    userId,
+    email: userEmail,
+    lastUsedAt: new Date().toISOString(),
+  });
+  // The in-memory `passphrase` we hold in `keyringStore` is the PGP
+  // passphrase — it's what `openpgp.decryptKey` needs on every encrypt
+  // call. The keystore passphrase is only needed at unlock time and
+  // never enters memory long-term.
+  await useKeyringStore
+    .getState()
+    .setKeys(
+      prepared.publicKeyArmored,
+      prepared.privateKeyArmored,
+      prepared.pgpPassphrase,
+      prepared.dialogKey,
+    );
+  useSessionStore.getState().setFingerprint(prepared.fingerprint);
 }
 
 /**
@@ -77,58 +239,20 @@ export async function generateAndStoreKey(
   pgpPassphrase: string | undefined,
   algorithm: KeyAlgorithm = "ecc",
 ): Promise<KeyPair> {
-  const user = useSessionStore.getState().user;
-  const accessToken = getAccessToken();
-  if (user === null) {
-    throw new Error("generateAndStoreKey: no user in sessionStore");
-  }
-  if (accessToken === null) {
-    throw new Error("generateAndStoreKey: no access token captured from login");
-  }
   if (passphrase.length === 0) {
     throw new Error("generateAndStoreKey: keystore passphrase must not be empty");
   }
-
-  // OpenPGP accepts an empty passphrase to mean "do not encrypt this
-  // key" (RFC 9580 §5.1). Pass through whatever the caller chose —
-  // including an empty string — verbatim.
-  const pair = await keyring.generateKeyPair(
-    { name: userEmail.split("@")[0] ?? userEmail, email: userEmail },
-    pgpPassphrase ?? "",
-    algorithm,
-  );
-  const fingerprint = await keyring.fingerprintOf(pair.publicKeyArmored);
-
-  const payload: KeystorePayload = {
-    version: 1,
-    user: { id: user.id, email: userEmail },
-    accessToken,
-    privateKeyArmored: pair.privateKeyArmored,
-    publicKeyArmored: pair.publicKeyArmored,
-    fingerprint,
-    dialogKey: generateDialogKeyB64(),
+  // Legacy single-shot path (disk write with no server round-trip in
+  // between). Onboarding routes use the two-phase API directly
+  // (prepare → changePublicKey → persist) so a failed upload leaves no
+  // `.qks` behind; this wrapper stays for any non-route callers.
+  const prepared = await prepareGeneratedPair(userEmail, pgpPassphrase, algorithm);
+  await persistPreparedPair(userEmail, passphrase, prepared);
+  return {
+    privateKeyArmored: prepared.privateKeyArmored,
+    publicKeyArmored: prepared.publicKeyArmored,
+    fingerprint: prepared.fingerprint,
   };
-
-  await writeKeystore(user.id, payload, passphrase);
-  // Make the freshly written keystore discoverable from the index —
-  // without this, the next cold-start login screen would not list this
-  // user in the device picker (and `hasKeystore(user.id)` would be the
-  // only way to know, which is per-user and not user-picker-friendly).
-  await upsertIndexEntry({
-    userId: user.id,
-    email: userEmail,
-    lastUsedAt: new Date().toISOString(),
-  });
-  // The in-memory `passphrase` we hold in `keyringStore` is the PGP
-  // passphrase — it's what `openpgp.decryptKey` needs on every encrypt
-  // call. The keystore passphrase is only needed at unlock time and
-  // never enters memory long-term.
-  await useKeyringStore
-    .getState()
-    .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, pgpPassphrase ?? "", payload.dialogKey);
-  useSessionStore.getState().setFingerprint(fingerprint);
-
-  return pair;
 }
 
 /**
@@ -151,47 +275,11 @@ export async function importAndStoreKey(
   passphrase: string,
   userEmail: string,
 ): Promise<void> {
-  const user = useSessionStore.getState().user;
-  const accessToken = getAccessToken();
-  if (user === null) {
-    throw new Error("importAndStoreKey: no user in sessionStore");
-  }
-  if (accessToken === null) {
-    throw new Error("importAndStoreKey: no access token captured from login");
-  }
-
-  const valid = await isValidArmoredPrivateKey(armoredPrivate, passphrase);
-  if (!valid) {
-    throw new Error("Invalid private key or wrong passphrase");
-  }
-
-  const fingerprint = await keyring.fingerprintOf(armoredPublic);
-  const pair: KeyPair = {
-    privateKeyArmored: armoredPrivate,
-    publicKeyArmored: armoredPublic,
-    fingerprint,
-  };
-
-  const payload: KeystorePayload = {
-    version: 1,
-    user: { id: user.id, email: userEmail },
-    accessToken,
-    privateKeyArmored: pair.privateKeyArmored,
-    publicKeyArmored: pair.publicKeyArmored,
-    fingerprint,
-    dialogKey: generateDialogKeyB64(),
-  };
-
-  await writeKeystore(user.id, payload, passphrase);
-  await upsertIndexEntry({
-    userId: user.id,
-    email: userEmail,
-    lastUsedAt: new Date().toISOString(),
-  });
-  await useKeyringStore
-    .getState()
-    .setKeys(pair.publicKeyArmored, pair.privateKeyArmored, passphrase, payload.dialogKey);
-  useSessionStore.getState().setFingerprint(fingerprint);
+  // Legacy single-shot path — same layering note as
+  // `generateAndStoreKey` above: routes use prepare → changePublicKey →
+  // persist so upload failures leave the disk untouched.
+  const prepared = await prepareImportedPair(armoredPrivate, armoredPublic, passphrase);
+  await persistPreparedPair(userEmail, passphrase, prepared);
 }
 
 /**

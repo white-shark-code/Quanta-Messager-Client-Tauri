@@ -29,13 +29,19 @@ function peekReplyOf(message: DialogMessage | PendingMessage): ReplyRef | null {
 
 /**
  * Close the panel, then scroll the chat list to a message anchor and
- * flash-highlight it (shared helper owned by Track C — scrolls to the
- * `msg-<id>` anchor and dispatches `message:highlight` for the bubble).
+ * flash-highlight it. `onJump` defaults to the shared helper owned by
+ * Track C (scrolls to the `msg-<id>` anchor and dispatches
+ * `message:highlight` for the bubble); the route passes its unified
+ * scroll hook (`useChatScroll().jumpToId`) instead.
  */
-function closeAndJump(messageId: string, onClose: () => void): void {
+function closeAndJump(
+  messageId: string,
+  onClose: () => void,
+  onJump: (messageId: string) => void = jumpToMessage,
+): void {
   onClose();
   requestAnimationFrame(() => {
-    jumpToMessage(messageId);
+    onJump(messageId);
   });
 }
 
@@ -108,9 +114,17 @@ export interface ThreadPanelProps {
   kind: "private" | "group";
   openedId: string | null;
   onClose: () => void;
+  /** Jump override (e.g. the route's shared scroll hook). Defaults to `jumpToMessage`. */
+  onJump?: (messageId: string) => void;
 }
 
-export function ThreadPanel({ chatId, kind, openedId, onClose }: ThreadPanelProps): JSX.Element {
+export function ThreadPanel({
+  chatId,
+  kind,
+  openedId,
+  onClose,
+  onJump = jumpToMessage,
+}: ThreadPanelProps): JSX.Element {
   const { t } = useTranslation();
 
   // Both hooks stay mounted unconditionally (stable hook order); the
@@ -153,7 +167,7 @@ export function ThreadPanel({ chatId, kind, openedId, onClose }: ThreadPanelProp
                   nodeId={node.id}
                   missing={node.missing}
                   message={byId.get(node.id)}
-                  onJump={(id) => closeAndJump(id, onClose)}
+                  onJump={(id) => closeAndJump(id, onClose, onJump)}
                 />
               </div>
             </Group>

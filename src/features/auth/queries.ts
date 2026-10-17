@@ -5,6 +5,7 @@ import { hasKeystore } from "@/infra/tauriBridge";
 import { upsertIndexEntry } from "@/features/secure-store/store";
 
 import * as authApi from "./api";
+import { getOnboardingPending } from "./onboardingPending";
 import { getAccessToken, setAccessToken } from "./accessToken";
 import { bindTokenProvider, useSessionStore } from "./sessionStore";
 
@@ -54,10 +55,18 @@ export function useLogin() {
 
       // Decide where to go based on per-user keystore presence.
       const exists = await hasKeystore(user.id);
-      const dest = exists
-        ? `/unlock?userId=${encodeURIComponent(user.id)}`
-        : `/create-keystore?userId=${encodeURIComponent(user.id)}`;
-      navigate(dest, { replace: true });
+      if (!exists) {
+        // Unfinished onboarding (server accepted a key but the keystore
+        // was never written) resumes generation instead of a plain
+        // first-run setup — same page, `resume=1` marks the reason.
+        const pending = getOnboardingPending();
+        const resume = pending !== null && pending.userId === user.id ? "&resume=1" : "";
+        navigate(`/create-keystore?userId=${encodeURIComponent(user.id)}${resume}`, {
+          replace: true,
+        });
+        return;
+      }
+      navigate(`/unlock?userId=${encodeURIComponent(user.id)}`, { replace: true });
     },
   });
 }

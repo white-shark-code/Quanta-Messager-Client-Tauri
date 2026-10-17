@@ -4,10 +4,11 @@
  * Two layers of caching live here:
  *
  *   1. **Pagination cache (TanStack Query)** — `useInfiniteQuery` with a
- *      key of `['messages', 'private' | 'group', chatId]`. The server
- *      returns pages in *oldest-first* order; the `select` transform
- *      flattens all loaded pages and reverses them so the UI can render
- *      newest-first without per-message sorting. The query cache
+ *      key of `['messages', 'private' | 'group', chatId]`. Pages are kept
+ *      in chronological (oldest-first) order; the `select` transform
+ *      flattens all loaded pages and sorts them ascending by
+ *      `creation_datetime` so the UI renders oldest-first with the
+ *      newest message at the bottom. The query cache
  *      survives chat switches because the keys are per-`chatId`.
  *
  *   2. **Decryption cache (in-memory `Map`)** — once we've decrypted a
@@ -228,10 +229,23 @@ const PAGE_LIMIT = 50;
 /** A single page returned by the messages API. */
 type MessagesPage = ListItems<DialogMessage>;
 
-/** `useInfiniteQuery`'s `select` output: all loaded pages flattened + reversed. */
+/** `useInfiniteQuery`'s `select` output: all loaded pages flattened + sorted. */
 interface FlatMessages {
   pages: MessagesPage[];
   items: DialogMessage[];
+}
+
+/**
+ * Oldest-first comparator — the single ordering rule for the chat list.
+ * `select` applies it after flattening, so optimistic rows (which carry a
+ * fresh `creation_datetime`) land at the bottom, exactly where their
+ * server confirmation appears after refetch. Stable: ties keep cache
+ * order, so an appended pending row never jumps.
+ */
+export function compareByCreationDate(a: DialogMessage, b: DialogMessage): number {
+  if (a.creation_datetime < b.creation_datetime) return -1;
+  if (a.creation_datetime > b.creation_datetime) return 1;
+  return 0;
 }
 
 /** Distinguishes the two list flavors; used as the second slot of the query key. */
@@ -264,9 +278,9 @@ export function usePrivateMessages(
       lastPage.items.length === PAGE_LIMIT ? allPages.flatMap((p) => p.items).length : undefined,
     select: (data) => ({
       pages: data.pages,
-      // Server returns oldest-first; reverse so the UI can render
-      // newest at the bottom (typical chat layout).
-      items: data.pages.flatMap((p) => p.items).reverse(),
+      // Pages arrive oldest-first; sort ascending so the UI renders
+      // chronologically with the newest message at the bottom.
+      items: data.pages.flatMap((p) => p.items).sort(compareByCreationDate),
     }),
   });
 
@@ -317,7 +331,9 @@ export function useGroupMessages(
       lastPage.items.length === PAGE_LIMIT ? allPages.flatMap((p) => p.items).length : undefined,
     select: (data) => ({
       pages: data.pages,
-      items: data.pages.flatMap((p) => p.items).reverse(),
+      // Same chronological order as the private list: oldest-first,
+      // newest message at the bottom.
+      items: data.pages.flatMap((p) => p.items).sort(compareByCreationDate),
     }),
   });
 

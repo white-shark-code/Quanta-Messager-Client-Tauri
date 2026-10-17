@@ -141,6 +141,40 @@ describe("media/pipeline", () => {
     expect(vi.mocked(mediaApi.uploadPrivateMedia)).toHaveBeenCalledTimes(2);
   });
 
+  it("encryptAndUploadPrivate encrypts to the peer key when provided", async () => {
+    useKeyringStore.setState({ publicKey: pub, privateKey: priv, status: "ready" });
+    const peerPair = await generateKeyPair(
+      { name: "Peer", email: "peer@test.local" },
+      PASSPHRASE,
+      "ecc",
+    );
+    const peerPriv = await importPrivateKey(peerPair.privateKeyArmored, PASSPHRASE);
+    let captured: { encrypted_file: string; signature: string } | null = null;
+    vi.mocked(mediaApi.uploadPrivateMedia).mockImplementation((_chatId, req) => {
+      captured = { encrypted_file: req.encrypted_file, signature: req.signature };
+      return Promise.resolve({
+        id: "media-peer",
+        mime_type: "image/bmp",
+        file_size: BMP_BYTES.length,
+        creation_datetime: "2026-10-16T00:00:00",
+      });
+    });
+    const out = await encryptAndUploadPrivate(
+      new File([BMP_BYTES], "black.bmp", { type: "image/bmp" }),
+      "chat-1",
+      { peerPublicKeyArmored: peerPair.publicKeyArmored },
+    );
+    expect(out.id).toBe("media-peer");
+    expect(captured).not.toBeNull();
+    const enc = new Uint8Array(Buffer.from(captured!.encrypted_file, "base64"));
+    const sig = new Uint8Array(Buffer.from(captured!.signature, "base64"));
+    // The peer decrypts with their own private key (sender key = ours).
+    const back = await decryptFile(enc, sig, pub, peerPriv);
+    expect(back).toEqual(BMP_BYTES);
+    // Our own key cannot open the peer-encrypted blob.
+    await expect(decryptFile(enc, sig, pub, priv)).rejects.toThrow();
+  });
+
   it("encryptAndUploadMultiplePrivate rejects when any upload fails", async () => {
     useKeyringStore.setState({ publicKey: pub, privateKey: priv, status: "ready" });
     vi.mocked(mediaApi.uploadPrivateMedia)

@@ -23,6 +23,13 @@ export interface RegisterResponse {
 export interface MeResponse {
   id: string;
   email: string;
+  /**
+   * Optional public-key presence fields. Older backends return only
+   * `{id, email}` — both stay `undefined` there, which
+   * `probeServerKeyAccepted` treats as "unknown" (never as "no key").
+   */
+  has_public_key?: boolean;
+  public_key?: string | null;
 }
 
 /**

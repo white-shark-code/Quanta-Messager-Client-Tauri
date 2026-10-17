@@ -29,6 +29,8 @@ import { IconLock } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 
 import { hasKeystore } from "@/infra/tauriBridge";
+import { getOnboardingPending } from "@/features/auth/onboardingPending";
+import { useSessionStore } from "@/features/auth/sessionStore";
 import { unlockWithPassphrase } from "@/features/auth/unlock";
 import { toUserMessage } from "@/infra/error";
 
@@ -103,6 +105,17 @@ export function UnlockRoute(): JSX.Element | null {
     setBusy(true);
     try {
       await unlockWithPassphrase(userId, passphrase, pgpDiffers ? pgpPassphrase : undefined);
+      // Bare keystore (no PGP key) + unfinished onboarding: the user
+      // never completed key generation — resume it instead of chats.
+      // We can only see the `NO_KEY` sentinel AFTER decryption, which
+      // is why this check lives here and not in the pre-unlock guards.
+      const fingerprint = useSessionStore.getState().fingerprint;
+      if (fingerprint === "NO_KEY" && getOnboardingPending() !== null) {
+        navigate(`/create-keystore?userId=${encodeURIComponent(userId)}&resume=1`, {
+          replace: true,
+        });
+        return;
+      }
       navigate(resolvePostUnlockTarget(location.state), { replace: true });
     } catch (e) {
       setError(toUserMessage(e));

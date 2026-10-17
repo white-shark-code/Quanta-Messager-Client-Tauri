@@ -105,7 +105,20 @@
       "setupKeyButton": "Set up keys",
       "placeholder": "Type a message…",
       "disabledPlaceholder": "Composer disabled — see notice above",
-      "sendTooltip": "Send (Enter)"
+      "sendTooltip": "Send (Enter)",
+      "attach": "Attach files",
+      "removeAttachment": "Remove attachment",
+      "dropHint": "Drop files to attach them",
+      "unnamedFile": "unnamed file",
+      "fileTooLarge": "File {{name}} exceeds the 50 MB limit",
+      "fileEmpty": "File {{name}} is empty",
+      "attachmentMissing": "Attachment {{name}} data is missing — re-attach it",
+      "mediaStatus": {
+        "pending": "ready",
+        "encrypted": "encrypting",
+        "uploaded": "uploaded",
+        "failed": "failed"
+      }
     }
   },
   "settings": {

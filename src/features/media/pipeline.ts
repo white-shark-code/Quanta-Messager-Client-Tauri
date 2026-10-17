@@ -15,11 +15,8 @@
  * Out of scope here:
  *   - Upload progress (TASK-074).
  *   - Decryption / caching (TASK-072, `features/media/decrypt.ts`).
- *   - Group recipient fan-out — MVP uploads are encrypted to the user's
- *     own public key, matching the MVP "notes to self" chat model. The
- *     helper still takes an explicit `recipientsPublicKeys` argument on
- *     {@link encryptMedia} so a multi-recipient upgrade (group chats
- *     with shared encryption keys) is a pure call-site change.
+ *   - Group recipient fan-out to N member keys — uploads encrypt to the
+ *     single peer/group key passed via {@link MediaRecipientOptions}.
  */
 
 import * as openpgp from "openpgp";
@@ -31,6 +28,35 @@ import { useSessionStore } from "@/features/auth/sessionStore";
 import * as mediaApi from "./api";
 import { MAX_MEDIA_SIZE_BYTES } from "./constants";
 import { writeMediaVault } from "./vault";
+
+/**
+ * Recipient override for media uploads.
+ *
+ * When `peerPublicKeyArmored` is a non-empty armor string, the blob is
+ * encrypted to that key (peer for 1:1, group key for group chats) so the
+ * other side can actually decrypt it. When omitted/empty, the upload
+ * falls back to the local user's own key (notes-to-self).
+ */
+export interface MediaRecipientOptions {
+  peerPublicKeyArmored?: string | null;
+}
+
+/**
+ * Resolve media recipient keys: peer/group key when provided, own key
+ * otherwise. Throws when neither is usable.
+ */
+async function resolveMediaRecipients(
+  peerPublicKeyArmored?: string | null,
+): Promise<openpgp.Key[]> {
+  if (peerPublicKeyArmored !== null && peerPublicKeyArmored !== undefined) {
+    if (peerPublicKeyArmored.length > 0) {
+      return [await keyring.importPublicKey(peerPublicKeyArmored)];
+    }
+  }
+  const { publicKey } = useKeyringStore.getState();
+  if (publicKey !== null) return [publicKey];
+  throw new Error("resolveMediaRecipients: no recipient key (peer or own) available");
+}
 
 /**
  * Result of {@link encryptMedia}: the ciphertext + detached signature
@@ -114,10 +140,9 @@ export async function encryptMedia(
  * Encrypt a media file with the local keyring and upload it to a
  * private dialog chat.
  *
- * MVP behaviour: encrypts to the user's own public key
- * (`keyringStore.publicKey`) and signs with the unlocked private key.
- * The receiver is identical to the sender in the MVP chat model (no
- * recipient list yet), so this round-trips correctly for self-notes.
+ * The blob is encrypted to the peer's key when
+ * `opts.peerPublicKeyArmored` is set (so the recipient can decrypt it),
+ * otherwise to the user's own key (notes-to-self fallback).
  *
  * Throws if the keyring is `empty` / `locked` — i.e. the caller is
  * trying to send before unlock completed. Surfaces the underlying
@@ -126,13 +151,15 @@ export async function encryptMedia(
 export async function encryptAndUploadPrivate(
   file: File | Blob,
   chatId: string,
+  opts?: MediaRecipientOptions,
 ): Promise<UploadedMedia> {
   const { publicKey, privateKey } = useKeyringStore.getState();
   if (publicKey === null || privateKey === null) {
     throw new Error("encryptAndUploadPrivate: keyring not ready (no public/private key)");
   }
 
-  const encrypted = await encryptMedia(file, [publicKey], privateKey);
+  const recipients = await resolveMediaRecipients(opts?.peerPublicKeyArmored);
+  const encrypted = await encryptMedia(file, recipients, privateKey);
   const attachment = await mediaApi.uploadPrivateMedia(chatId, {
     encrypted_file: bytesToBase64(encrypted.encrypted),
     signature: bytesToBase64(encrypted.signature),
@@ -154,20 +181,23 @@ export async function encryptAndUploadPrivate(
 }
 
 /**
- * Group-chat twin of {@link encryptAndUploadPrivate}. Same encryption
- * (self-keyed) and same request shape — the only difference is the
- * backend route via `uploadGroupMedia`.
+ * Group-chat twin of {@link encryptAndUploadPrivate}. Same recipient
+ * resolution (group key via `opts.peerPublicKeyArmored`, own key as
+ * fallback) — the only difference is the backend route via
+ * `uploadGroupMedia`.
  */
 export async function encryptAndUploadGroup(
   file: File | Blob,
   chatId: string,
+  opts?: MediaRecipientOptions,
 ): Promise<UploadedMedia> {
   const { publicKey, privateKey } = useKeyringStore.getState();
   if (publicKey === null || privateKey === null) {
     throw new Error("encryptAndUploadGroup: keyring not ready (no public/private key)");
   }
 
-  const encrypted = await encryptMedia(file, [publicKey], privateKey);
+  const recipients = await resolveMediaRecipients(opts?.peerPublicKeyArmored);
+  const encrypted = await encryptMedia(file, recipients, privateKey);
   const attachment = await mediaApi.uploadGroupMedia(chatId, {
     encrypted_file: bytesToBase64(encrypted.encrypted),
     signature: bytesToBase64(encrypted.signature),
@@ -204,8 +234,9 @@ export async function encryptAndUploadGroup(
 export async function encryptAndUploadMultiplePrivate(
   files: readonly File[],
   chatId: string,
+  opts?: MediaRecipientOptions,
 ): Promise<UploadedMedia[]> {
-  return Promise.all(files.map((file) => encryptAndUploadPrivate(file, chatId)));
+  return Promise.all(files.map((file) => encryptAndUploadPrivate(file, chatId, opts)));
 }
 
 /* ------------------------------------------------------------------ *

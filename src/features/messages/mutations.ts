@@ -12,8 +12,10 @@
  *
  * Cache contract with `queries.ts` (TASK-051): the message list lives under
  * `["messages", "private" | "group", chatId]` as an `InfiniteData` of
- * {@link ListItems} pages. Optimistic rows are inserted into **page 0**,
- * which is assumed to hold the newest slice (see {@link insertPending}).
+ * {@link ListItems} pages in chronological (oldest-first) order, with the
+ * newest message at the tail. Optimistic rows are appended to the **tail
+ * of the last page** (see {@link insertPending}); {@link replacePending}
+ * swaps them for the server row in place, preserving order.
  *
  * MVP limitation (report_for_backend/01): there is no endpoint to fetch a
  * peer's public key yet, so every message is encrypted **to ourselves**.
@@ -76,6 +78,13 @@ export interface SendMessageInput {
    * present — the reply link is dropped (see `stripForForward`).
    */
   forwarded?: ForwardRef;
+  /**
+   * Server ids of already-uploaded media attachments to link to the new
+   * message (`CreateMessageRequest.media_ids`). The upload pipeline
+   * (`features/media`) runs before the send; the mutation only attaches
+   * the resulting ids — it never uploads blobs itself.
+   */
+  media_ids?: string[];
 }
 
 /**
@@ -167,21 +176,25 @@ function makePending(
 }
 
 /**
- * Insert an optimistic row into page 0.
+ * Append an optimistic row to the tail of the last page.
  *
- * Page 0 is the newest slice (offset 0) and the backend returns it
- * newest-first, so the freshly sent message goes to the **head**. This is
- * the single place that encodes the ordering assumption — if TASK-051
- * flips the page order, only this function changes.
+ * Pages are chronological (oldest-first) and the `select` in `queries.ts`
+ * sorts flattened items ascending by `creation_datetime`, so the newest
+ * message belongs at the **tail**. Appending puts the optimistic row
+ * exactly where its server confirmation will land after refetch — no jump.
+ * This is the single place that encodes the ordering assumption.
  */
-function insertPending(cache: MessagesCache, pending: PendingMessage): MessagesCache {
-  const [first, ...rest] = cache.pages;
-  if (first === undefined) {
+export function insertPending(cache: MessagesCache, pending: PendingMessage): MessagesCache {
+  if (cache.pages.length === 0) {
+    return { pages: [{ items: [pending] }], pageParams: [...cache.pageParams] };
+  }
+  const last = cache.pages[cache.pages.length - 1];
+  if (last === undefined) {
     return { pages: [{ items: [pending] }], pageParams: [...cache.pageParams] };
   }
   return {
     ...cache,
-    pages: [{ ...first, items: [pending, ...first.items] }, ...rest],
+    pages: [...cache.pages.slice(0, -1), { ...last, items: [...last.items, pending] }],
   };
 }
 
@@ -192,7 +205,13 @@ function mapPages(
   return { ...cache, pages: cache.pages.map((page) => ({ ...page, items: fn(page.items) })) };
 }
 
-function replacePending(
+/**
+ * Swap a pending row for its server confirmation in place.
+ *
+ * Order is preserved: the server row inherits the tail position the
+ * optimistic row was appended at, so the message does not jump.
+ */
+export function replacePending(
   cache: MessagesCache,
   tempId: string,
   server: DialogMessage,
@@ -322,14 +341,14 @@ function useSendMessage(
   return useMutation<DialogMessage, Error, SendMessageInput, SendContext>({
     mutationKey: ["messages", kind, chatId, "send"],
 
-    mutationFn: async ({ text, replyTo, forwarded }: SendMessageInput) => {
+    mutationFn: async ({ text, replyTo, forwarded, media_ids }: SendMessageInput) => {
       if (privateKey === null) {
         throw new Error("Keys not loaded");
       }
       if (user === null) {
         throw new Error("Not logged in");
       }
-      if (text.trim().length === 0) {
+      if (text.trim().length === 0 && (media_ids?.length ?? 0) === 0) {
         throw new Error("Cannot send an empty message");
       }
 
@@ -384,6 +403,7 @@ function useSendMessage(
         signature: bytesToBase64(main.signature),
         encrypted_message_self: bytesToBase64(selfCopy.encrypted),
         signature_self: bytesToBase64(selfCopy.signature),
+        ...(media_ids !== undefined && media_ids.length > 0 ? { media_ids } : {}),
       });
     },
 

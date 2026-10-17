@@ -556,6 +556,46 @@ export async function pickFiles(multiple = false): Promise<string[] | null> {
 }
 
 /**
+ * Whether the Tauri runtime is available (desktop/mobile). Public
+ * accessor for the internal check — UI code (e.g. the message Composer)
+ * uses it to choose between the native file dialog (`pickFiles` +
+ * {@link readPickedFileBytes}) and the browser `<input type=file>`
+ * fallback.
+ */
+export function isTauriRuntime(): boolean {
+  return isTauri();
+}
+
+/**
+ * Read an arbitrary absolute-path file into memory.
+ *
+ * Used after {@link pickFiles}: the dialog returns paths only, so the
+ * Composer loads the selected bytes through this helper to build
+ * `File` objects for the media pipeline. Requires `fs:allow-read-file`
+ * on the Rust side.
+ *
+ * @param path Absolute filesystem path (from the open dialog).
+ * @returns Raw file bytes; the caller derives name/MIME from the path.
+ */
+export async function readPickedFileBytes(path: string): Promise<Uint8Array> {
+  if (!isTauri()) {
+    throw new Error("File read not available in browser mode");
+  }
+  return readFile(path);
+}
+
+/**
+ * Basename of a filesystem path (`/a/b.png` → `b.png`). Handles both
+ * POSIX and Windows separators; returns the input unchanged when it
+ * carries no separator.
+ */
+export function fileNameFromPath(path: string): string {
+  const parts = path.split(/[/\\]/);
+  const last = parts[parts.length - 1];
+  return last !== undefined && last.length > 0 ? last : path;
+}
+
+/**
  * Open a native "save as" dialog for an arbitrary export file.
  *
  * Wraps `@tauri-apps/plugin-dialog#save`. On the Rust side this

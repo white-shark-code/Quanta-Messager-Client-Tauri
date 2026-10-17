@@ -14,9 +14,15 @@
  *     plaintext key is wiped from component state the moment the user
  *     leaves the tab.
  *
- * Progress feedback on the Generate tab is a coarse 20/80/100 bar:
+ * Progress feedback on the Generate tab is a coarse 20/50/80/100 bar:
  * generation is local and blocking, but the network upload is what
- * actually wants visibility, so the bar advances on each major step.
+ * actually wants visibility, so the bar advances on each major step
+ * (prepared → uploaded → persisted).
+ *
+ * Ordering is server → disk (Task 1): Phase A prepares the pair in
+ * memory, `changePublicKey` uploads it, Phase B persists the keystore.
+ * Upload failure leaves the disk untouched and keeps the prepared pair
+ * in component state so retry reuses the SAME pair.
  */
 
 import { useEffect, useState } from "react";
@@ -45,10 +51,13 @@ import {
 import { IconCheck, IconCopy, IconDownload, IconEye, IconShieldLock } from "@tabler/icons-react";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
+import { clearOnboardingPending, markOnboardingPending } from "@/features/auth/onboardingPending";
 import {
-  generateAndStoreKey,
-  importAndStoreKey,
   exportKeystoreToFile,
+  persistPreparedPair,
+  prepareGeneratedPair,
+  prepareImportedPair,
+  type PreparedKeyMaterial,
 } from "@/features/keyring/generate";
 import type { KeyAlgorithm } from "@/features/keyring/types";
 import { changePublicKey } from "@/features/auth/api";
@@ -92,6 +101,11 @@ export function SetupKeyRoute(): JSX.Element {
   const [debugDetails, setDebugDetails] = useState<string>("");
   const [debugLoc, setDebugLoc] = useState<string>("");
 
+  // Phase-A pairs held for retry with the SAME pair after an upload
+  // failure (disk is untouched until the server accepts the key).
+  const [pendingGenerate, setPendingGenerate] = useState<PreparedKeyMaterial | null>(null);
+  const [pendingImport, setPendingImport] = useState<PreparedKeyMaterial | null>(null);
+
   useEffect(() => {
     setDebugLoc(getDebugLogLocation());
   }, []);
@@ -131,9 +145,18 @@ export function SetupKeyRoute(): JSX.Element {
     setBusy(true);
     setProgress(20);
     try {
-      const pair = await generateAndStoreKey(user.email, passphrase, undefined, algorithm);
+      let prepared = pendingGenerate;
+      if (prepared === null) {
+        markOnboardingPending(user.id, user.email);
+        prepared = await prepareGeneratedPair(user.email, undefined, algorithm);
+        setPendingGenerate(prepared);
+      }
+      setProgress(50);
+      await changePublicKey(prepared.publicKeyArmored);
       setProgress(80);
-      await changePublicKey(pair.publicKeyArmored);
+      await persistPreparedPair(user.email, passphrase, prepared);
+      clearOnboardingPending();
+      setPendingGenerate(null);
       setProgress(100);
       navigate("/chats", { replace: true });
     } catch (e) {
@@ -173,7 +196,18 @@ export function SetupKeyRoute(): JSX.Element {
       const publicPart = armored.includes(splitMarker)
         ? `${splitMarker}${armored.split(splitMarker)[1] ?? ""}`
         : "";
-      await importAndStoreKey(privatePart, publicPart, passphrase, user.email);
+      let prepared = pendingImport;
+      if (prepared === null) {
+        markOnboardingPending(user.id, user.email);
+        prepared = await prepareImportedPair(privatePart, publicPart, passphrase);
+        setPendingImport(prepared);
+      }
+      // Upload BEFORE any disk write — failure leaves the disk
+      // untouched and the retry reuses the same prepared pair.
+      await changePublicKey(prepared.publicKeyArmored);
+      await persistPreparedPair(user.email, passphrase, prepared);
+      clearOnboardingPending();
+      setPendingImport(null);
       navigate("/chats", { replace: true });
     } catch (e) {
       void debugLog("Import", e, { hasUser: user !== null });

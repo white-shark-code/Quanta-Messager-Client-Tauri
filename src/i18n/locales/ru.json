@@ -105,7 +105,20 @@
       "setupKeyButton": "Настроить ключи",
       "placeholder": "Введите сообщение…",
       "disabledPlaceholder": "Отправка недоступна — см. уведомление выше",
-      "sendTooltip": "Отправить (Enter)"
+      "sendTooltip": "Отправить (Enter)",
+      "attach": "Прикрепить файлы",
+      "removeAttachment": "Убрать вложение",
+      "dropHint": "Отпустите файлы, чтобы прикрепить их",
+      "unnamedFile": "файл без имени",
+      "fileTooLarge": "Файл {{name}} превышает лимит 50 МБ",
+      "fileEmpty": "Файл {{name}} пуст",
+      "attachmentMissing": "Данные вложения {{name}} потеряны — прикрепите его заново",
+      "mediaStatus": {
+        "pending": "готов",
+        "encrypted": "шифрование",
+        "uploaded": "загружен",
+        "failed": "ошибка"
+      }
     }
   },
   "settings": {
