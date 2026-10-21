@@ -28,9 +28,9 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconLock } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 
+import { BrandTile } from "@/ui/components/BrandLogo";
 import { hasKeystore } from "@/infra/tauriBridge";
 import { getOnboardingPending } from "@/features/auth/onboardingPending";
 import { useSessionStore } from "@/features/auth/sessionStore";
@@ -169,7 +169,7 @@ export function UnlockRoute(): JSX.Element | null {
       <Paper p="xl" maw={420} w="100%" withBorder>
         <Stack>
           <Center>
-            <IconLock size={48} />
+            <BrandTile size={72} title="" />
           </Center>
           <Title order={2} ta="center">
             {t("unlock.title")}

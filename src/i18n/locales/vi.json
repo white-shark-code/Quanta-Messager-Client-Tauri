@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Đang tải…",
+    "loadingSession": "Đang tải phiên…",
     "error": "Lỗi",
     "save": "Lưu",
     "cancel": "Hủy",

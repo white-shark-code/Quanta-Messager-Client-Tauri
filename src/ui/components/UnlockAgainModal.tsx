@@ -46,6 +46,7 @@ import {
   Button,
   Checkbox,
   Divider,
+  Group,
   Modal,
   PasswordInput,
   Stack,
@@ -55,6 +56,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { useTranslation } from "react-i18next";
 
+import { BrandMark } from "@/ui/components/BrandLogo";
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { router } from "@/routes";
 import {
@@ -173,7 +175,12 @@ export function UnlockAgainModal(): JSX.Element {
       <Modal
         opened={opened}
         onClose={close}
-        title={t("auth.unlock.title")}
+        title={
+          <Group gap="xs" wrap="nowrap">
+            <BrandMark size={20} color="var(--mantine-color-quant-6)" title="" />
+            <span>{t("auth.unlock.title")}</span>
+          </Group>
+        }
         centered
         onExitTransitionEnd={reset}
       >

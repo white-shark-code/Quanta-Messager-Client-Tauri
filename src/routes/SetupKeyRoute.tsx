@@ -50,6 +50,7 @@ import {
 } from "@mantine/core";
 import { IconCheck, IconCopy, IconDownload, IconEye, IconShieldLock } from "@tabler/icons-react";
 
+import { BrandMark } from "@/ui/components/BrandLogo";
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { clearOnboardingPending, markOnboardingPending } from "@/features/auth/onboardingPending";
 import {
@@ -288,9 +289,10 @@ export function SetupKeyRoute(): JSX.Element {
 
   return (
     <Paper p="md" maw={600} mx="auto" mt={40}>
-      <Title order={2} mb="md">
-        {t("setupKey.title")}
-      </Title>
+      <Group gap="xs" mb="md" wrap="nowrap">
+        <BrandMark size={26} color="var(--mantine-color-quant-6)" title="" />
+        <Title order={2}>{t("setupKey.title")}</Title>
+      </Group>
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
           <Tabs.Tab value="generate">{t("setupKey.tabs.generate")}</Tabs.Tab>

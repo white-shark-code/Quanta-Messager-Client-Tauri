@@ -1,6 +1,7 @@
 {
   "common": {
     "cancel": "Отмена",
+    "loadingSession": "Загрузка сессии…",
     "a11y": {
       "groupChat": "групповой чат",
       "privateChat": "личный чат",

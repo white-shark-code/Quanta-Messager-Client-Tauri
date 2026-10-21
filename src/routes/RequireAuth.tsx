@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { Center, Loader, Stack, Text } from "@mantine/core";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { getOnboardingPending } from "@/features/auth/onboardingPending";
 import { getLastUserId } from "@/features/secure-store/store";
 import { hasKeystore } from "@/infra/tauriBridge";
+import { BootSplash } from "@/ui/components/BootSplash";
 
 const ONBOARDING_PATHS = ["/create-keystore", "/setup-key"];
 
@@ -81,16 +81,7 @@ export function RequireAuth({ children }: { children: ReactElement }) {
   }, [pendingForUser, resumeUserId]);
 
   if (!hydrated || (!isUnlocked && lastUserId === undefined)) {
-    return (
-      <Center mih="100vh">
-        <Stack align="center" gap="xs">
-          <Loader size="md" />
-          <Text c="dimmed" size="sm">
-            Загрузка сессии…
-          </Text>
-        </Stack>
-      </Center>
-    );
+    return <BootSplash />;
   }
 
   if (!isUnlocked) {
@@ -108,16 +99,7 @@ export function RequireAuth({ children }: { children: ReactElement }) {
 
   if (pendingForUser && resumeUserId !== null) {
     if (mustResume === null) {
-      return (
-        <Center mih="100vh">
-          <Stack align="center" gap="xs">
-            <Loader size="md" />
-            <Text c="dimmed" size="sm">
-              Загрузка сессии…
-            </Text>
-          </Stack>
-        </Center>
-      );
+      return <BootSplash />;
     }
     if (mustResume) {
       return (

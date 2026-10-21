@@ -53,6 +53,7 @@ import { wipeDeviceData } from "@/features/settings/wipeLocalData";
 import { useWsStatusStore } from "@/features/events/wsStatusStore";
 import { useUserPublicKey } from "@/features/users/queries";
 import { clearDebugLog, getDebugLog, getDebugLogLocation } from "@/lib/debug";
+import { BrandTile } from "@/ui/components/BrandLogo";
 import { ColorSchemeToggle } from "@/ui/components/ColorSchemeToggle";
 
 /**
@@ -403,16 +404,19 @@ export function SettingsRoute(): JSX.Element {
         <Tabs.Panel value="about" pt="md">
           <Stack>
             <Paper withBorder p="md">
-              <Stack>
-                <Text fw={500}>Quant Messenger</Text>
-                <Text size="sm" c="dimmed">
-                  {t("settings.version")}
-                </Text>
-                <Text size="sm">{t("settings.aboutDescription")}</Text>
-                <Badge color="green" variant="light">
-                  MIT License
-                </Badge>
-              </Stack>
+              <Group align="flex-start" wrap="nowrap">
+                <BrandTile size={64} />
+                <Stack gap={4}>
+                  <Text fw={500}>Quant Messenger</Text>
+                  <Text size="sm" c="dimmed">
+                    {t("settings.version")}
+                  </Text>
+                  <Text size="sm">{t("settings.aboutDescription")}</Text>
+                  <Badge color="green" variant="light" style={{ alignSelf: "flex-start" }}>
+                    MIT License
+                  </Badge>
+                </Stack>
+              </Group>
             </Paper>
             <Paper withBorder p="md">
               <Stack>

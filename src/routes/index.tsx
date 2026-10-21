@@ -6,23 +6,14 @@ import {
   useNavigate,
   type RouteObject,
 } from "react-router-dom";
-import {
-  Anchor,
-  Button,
-  Center,
-  Loader,
-  Paper,
-  PasswordInput,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Anchor, Button, Paper, PasswordInput, Stack, TextInput, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 
 import { useLogin } from "@/features/auth/queries";
 import { toUserMessage } from "@/infra/error";
 import { getLastUserId } from "@/features/secure-store/store";
+import { BrandLockup } from "@/ui/components/BrandLogo";
+import { BootSplash } from "@/ui/components/BootSplash";
 
 import { AppShellRoute } from "./AppShellRoute";
 import { ChatRoute } from "./ChatRoute";
@@ -53,8 +44,11 @@ export function LoginRoute(): JSX.Element {
   }
 
   return (
-    <Paper p="md" maw={400} mx="auto" mt={80}>
-      <Title order={2} mb="md">
+    <Paper p="xl" maw={400} mx="auto" mt={80}>
+      <Stack align="center" mb="lg">
+        <BrandLockup size={40} />
+      </Stack>
+      <Title order={2} mb="md" ta="center">
         {t("auth.login.title")}
       </Title>
       <Stack>
@@ -110,16 +104,7 @@ function RootRedirect(): JSX.Element {
     };
   }, [navigate, location]);
 
-  return (
-    <Center mih="100vh">
-      <Stack align="center" gap="xs">
-        <Loader size="md" />
-        <Text c="dimmed" size="sm">
-          Загрузка сессии…
-        </Text>
-      </Stack>
-    </Center>
-  );
+  return <BootSplash />;
 }
 
 const protectedRoutes: RouteObject[] = [

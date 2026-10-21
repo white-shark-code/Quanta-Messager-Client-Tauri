@@ -199,6 +199,14 @@ Quant_tauri/
 │   ├── integration/            # docker-compose with backend
 │   ├── e2e/                    # playwright
 │   └── Dockerfile              # test container
+├── brand/                      # brand kit / айдентика
+│   ├── quant-icon-1024.png     # app icon source for `tauri icon`
+│   ├── quant-icon.svg
+│   ├── quant-mark.svg          # mark alone (transparent)
+│   ├── quant-lockup.svg        # mark + wordmark
+│   ├── quant-mono.svg          # monochrome / white on navy
+│   └── Quant-brand.vectorcraft # editable source / исходник
+├── public/                     # static assets (favicon, PWA)
 ├── docs/
 │   └── design.md               # full design doc
 ├── .agents/
@@ -206,11 +214,35 @@ Quant_tauri/
 │   └── report_for_backend/     # backend team reports
 ├── docker-compose.test.yml     # full test stack
 ├── scripts/
+│   ├── gen-brand-logo.mjs      # brand SVG → React components
 │   └── test-remote.sh          # ssh to dreamliner
 ├── package.json
 ├── tsconfig.json               # strict: true
 ├── vite.config.ts
 └── README.md                   # this file
+```
+
+---
+
+## Brand / Айдентика
+
+The logo is the "sealed message" mark: a speech-bubble **Q** whose
+counter is a keyhole (zero-knowledge, end-to-end encrypted chat).
+
+- `brand/` — master artwork: `quant-icon-1024.png` (app icon source),
+  `quant-mark.svg`, `quant-lockup.svg` (mark + outlined wordmark),
+  `quant-mono.svg`, and the editable `Quant-brand.vectorcraft`.
+- `src/ui/components/BrandLogo.tsx` — the same artwork inlined as React
+  components (`BrandMark`, `BrandLockup`, `BrandTile`); UI usages scale
+  without extra requests and inherit the theme (`currentColor`).
+
+After redrawing the artwork, re-export `brand/*.svg`, regenerate the
+inlined React components, the platform icon set and the browser assets:
+
+```bash
+node scripts/gen-brand-logo.mjs             # brand/*.svg → BrandLogo.tsx
+npx tauri icon brand/quant-icon-1024.png    # src-tauri/icons/ (ico, icns, android, ios)
+rsvg-convert -w 512 -h 512 brand/quant-icon.svg -o public/quant-icon-512.png
 ```
 
 ---

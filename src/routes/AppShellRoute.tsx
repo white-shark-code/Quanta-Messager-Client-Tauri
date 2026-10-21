@@ -6,6 +6,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 
 import { useEventsSocket } from "@/features/events/useEventsSocket";
 import { useRetentionSweep } from "@/features/settings/retention";
+import { BrandMark } from "@/ui/components/BrandLogo";
 
 export function AppShellRoute() {
   // Session-scoped realtime socket (T4). No-op unless unlocked + ws mode.
@@ -24,8 +25,9 @@ export function AppShellRoute() {
       padding="md"
     >
       <AppShell.Header>
-        <Group h="100%" px="md">
+        <Group h="100%" px="md" gap="xs">
           <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+          <BrandMark size={26} color="var(--mantine-color-quant-6)" title="" />
           <Title order={3}>{t("nav.appName")}</Title>
         </Group>
       </AppShell.Header>

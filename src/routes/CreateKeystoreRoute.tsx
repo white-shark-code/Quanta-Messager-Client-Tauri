@@ -57,7 +57,7 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import { IconKey, IconLock, IconShield } from "@tabler/icons-react";
+import { IconKey, IconLock } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
@@ -76,6 +76,7 @@ import {
 import { changePublicKey } from "@/features/auth/api";
 import { debugLog } from "@/lib/debug";
 import { toUserMessage } from "@/infra/error";
+import { BrandMark } from "@/ui/components/BrandLogo";
 import type { KeyAlgorithm } from "@/features/keyring/types";
 
 type PgpMode = "generate" | "import" | "skip";
@@ -272,7 +273,7 @@ export function CreateKeystoreRoute(): JSX.Element {
         <Paper p="xl" withBorder shadow="md">
           <Stack gap="md">
             <Group justify="center">
-              <IconShield size={48} />
+              <BrandMark size={48} color="var(--mantine-color-quant-6)" title="" />
             </Group>
             <Title order={2} ta="center">
               {t("createKeystore.title")}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="linear-gradient-1" x1="120" y1="40" x2="950" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b3f6e"/>
+      <stop offset="0.48" stop-color="#0e2241"/>
+      <stop offset="1" stop-color="#070f1c"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="210" y1="215" x2="830" y2="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b7f1ff"/>
+      <stop offset="0.42" stop-color="#5cc6ff"/>
+      <stop offset="1" stop-color="#2e9bff"/>
+    </linearGradient>
+  </defs>
+  <title>Quant brand</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <g id="_01_App_icon" data-name="01 App icon">
+      <path id="tile" d="M224 0 L800 0 C923.712 0 1024 100.288 1024 224 L1024 800 C1024 923.712 923.712 1024 800 1024 L224 1024 C100.288 1024 0 923.712 0 800 L0 224 C0 100.288 100.288 0 224 0 Z" fill="url(#linear-gradient-1)"/>
+      <path id="disc" d="M162 474.771 C162 320.34 287.191 195.15 441.622 195.15 C596.053 195.15 721.244 320.34 721.244 474.771 C721.244 483.51 720.843 492.155 720.059 500.69 C802.174 587.512 849.488 692.232 862 814.85 C775.249 799.077 689.596 761.359 605.04 701.694 C559.075 734.854 502.63 754.391 441.622 754.391 C287.191 754.391 162 629.201 162 474.771 Z M441.622 334.96 C380.058 334.96 330.151 384.867 330.151 446.431 C330.151 489.366 354.426 526.632 389.999 545.253 L396.278 597.577 C396.278 622.138 413.282 642.921 441.622 642.921 C469.962 642.921 486.966 622.138 486.966 597.577 L493.245 545.253 C528.819 526.632 553.093 489.366 553.093 446.431 C553.093 384.867 503.186 334.96 441.622 334.96 Z" fill="url(#linear-gradient-2)"/>
+    </g>
+  </g>
+</svg>

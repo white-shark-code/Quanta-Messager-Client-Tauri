@@ -1,6 +1,7 @@
 {
   "common": {
     "cancel": "Cancel",
+    "loadingSession": "Loading session…",
     "a11y": {
       "groupChat": "group chat",
       "privateChat": "private chat",
