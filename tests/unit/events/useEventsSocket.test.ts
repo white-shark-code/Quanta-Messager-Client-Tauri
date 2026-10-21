@@ -221,4 +221,47 @@ describe("events/useEventsSocket", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["events"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["messages", "group", "group-7"] });
   });
+
+  it("new_dialog_chat only refreshes the chat lists (no events/messages invalidation, no notify)", () => {
+    setAccessToken("tok-1");
+    useSessionStore.setState({ isUnlocked: true });
+
+    const queryClient = newQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { root } = mountHook(queryClient);
+    mountedRoots.push(root);
+
+    expect(socketHarness.create).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      socketHarness.captured?.onMessage({
+        type: "new_dialog_chat",
+        chat_id: "chat-9",
+        creator_id: "u-3",
+      });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats"] });
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ["events"] });
+    expect(bridgeMocks.notify).not.toHaveBeenCalled();
+  });
+
+  it("new_dialog_chat without a usable chat_id is a no-op", () => {
+    setAccessToken("tok-1");
+    useSessionStore.setState({ isUnlocked: true });
+
+    const queryClient = newQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { root } = mountHook(queryClient);
+    mountedRoots.push(root);
+
+    act(() => {
+      socketHarness.captured?.onMessage({ type: "new_dialog_chat" });
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
 });

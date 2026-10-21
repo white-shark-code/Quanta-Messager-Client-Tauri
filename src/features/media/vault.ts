@@ -13,8 +13,9 @@
  * - Write-after-verify: entries are persisted only after a successful
  *   `decryptFile` (or straight from the upload path, where the
  *   plaintext is already in hand). The vault never sees ciphertext.
- * - `index.json` per user tracks `{ id, size, lastAccess, chatId? }`
- *   for LRU eviction under {@link MEDIA_VAULT_QUOTA_BYTES}.
+ * - `index.json` per user tracks
+ *   `{ id, size, lastAccess, storedAt?, chatId? }` for LRU eviction under
+ *   {@link MEDIA_VAULT_QUOTA_BYTES} and age-based retention.
  * - Reads are vault-first: hit → bytes immediately (offline-capable);
  *   miss/corruption → `undefined` and the caller falls back to network.
  *   Corrupt entries are deleted on sight.
@@ -52,6 +53,11 @@ export interface MediaVaultEntry {
   id: string;
   size: number;
   lastAccess: number;
+  /**
+   * Epoch ms of the last write. Age anchor for retention cleanup; absent
+   * on entries written by older versions (fall back to `lastAccess`).
+   */
+  storedAt?: number;
   chatId?: string;
 }
 
@@ -206,10 +212,12 @@ export async function writeMediaVault(
     await writeMediaBuffer(userId, input.mediaId, packed);
     const entries = await loadIndex(userId);
     const without = entries.filter((e) => e.id !== input.mediaId);
+    const now = Date.now();
     without.push({
       id: input.mediaId,
       size: input.plain.length,
-      lastAccess: Date.now(),
+      lastAccess: now,
+      storedAt: now,
       ...(input.chatId !== undefined ? { chatId: input.chatId } : {}),
     });
     // LRU eviction, oldest access first (the just-written entry is
@@ -248,13 +256,54 @@ export async function deleteMediaForChat(userId: string, chatId: string): Promis
   }
 }
 
-/** Wipe the whole vault (explicit "erase all data"). Never throws. */
-export async function clearMediaVault(userId: string): Promise<void> {
+/**
+ * Retention sweep: delete vault entries older than `retentionDays`.
+ *
+ * The age anchor is `storedAt` (write time) with a fallback to
+ * `lastAccess` for entries written by older versions; entries that have
+ * neither timestamp are kept. `retentionDays <= 0` (or a non-finite
+ * value) disables the sweep. Victims are removed from disk and dropped
+ * from the index; returns the number of deleted entries. Best-effort —
+ * an unreadable index yields `0` and the function never throws.
+ */
+export async function applyMediaRetention(userId: string, retentionDays: number): Promise<number> {
+  if (!Number.isFinite(retentionDays) || retentionDays <= 0) return 0;
+  const cutoff = Date.now() - retentionDays * 86_400_000;
+  try {
+    const entries = await loadIndex(userId);
+    const victims = entries.filter((entry) => {
+      const anchor = entry.storedAt ?? entry.lastAccess;
+      if (typeof anchor !== "number" || !Number.isFinite(anchor)) return false;
+      return anchor < cutoff;
+    });
+    if (victims.length === 0) return 0;
+    const victimIds = new Set(victims.map((e) => e.id));
+    await Promise.all(victims.map((e) => deleteMediaFile(userId, e.id)));
+    await saveIndex(
+      userId,
+      entries.filter((e) => !victimIds.has(e.id)),
+    );
+    return victims.length;
+  } catch {
+    // best-effort — a storage failure must not break the sweep
+    return 0;
+  }
+}
+
+/**
+ * Wipe the whole vault (explicit "erase all data"). Best-effort: deletes
+ * every indexed entry file and resets the index. Returns the number of
+ * deleted entries; `0` when the index is unreadable (nothing is touched).
+ * Never throws.
+ */
+export async function clearMediaVault(userId: string): Promise<number> {
   try {
     const entries = await loadIndex(userId);
     await Promise.all(entries.map((e) => deleteMediaFile(userId, e.id)));
     await saveIndex(userId, []);
+    return entries.length;
   } catch {
     // best-effort
+    return 0;
   }
 }

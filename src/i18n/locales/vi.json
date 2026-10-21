@@ -15,6 +15,12 @@
       "switchToDark": "Chuyển sang giao diện tối"
     }
   },
+  "unlock": {
+    "wipeDataButton": "Xoá dữ liệu thiết bị",
+    "wipeDataConfirmTitle": "Xoá dữ liệu thiết bị?",
+    "wipeDataConfirmText": "Tất cả hội thoại, tệp phương tiện và khóa mã hoá của tài khoản này trên thiết bị sẽ bị xoá. Bạn sẽ cần đăng nhập lại hoặc đăng ký mới.",
+    "wipeDataAction": "Xoá"
+  },
   "auth": {
     "login": {
       "title": "Đăng nhập",
@@ -132,6 +138,13 @@
     "profile": "Hồ sơ",
     "appearance": "Giao diện",
     "about": "Giới thiệu",
+    "storageTab": "Lưu trữ",
+    "chatRetention": "Giữ hội thoại",
+    "mediaRetention": "Giữ phương tiện",
+    "retentionForever": "Mãi mãi",
+    "retentionDays": "{{days}} ngày",
+    "retentionYear": "1 năm",
+    "retentionNote": "Dọn dẹp chỉ áp dụng trên thiết bị này. Lịch sử từ máy chủ sẽ tải lại khi cuộn lên, phương tiện đã xoá sẽ được tải lại khi xem. \"Mãi mãi\" tắt dọn dẹp tự động.",
     "email": "Email",
     "userId": "ID người dùng",
     "language": "Ngôn ngữ",
@@ -152,6 +165,10 @@
     "pushError": "Không thể bật push: {{reason}}",
     "pushUnsupported": "Trình duyệt này không hỗ trợ Web Push (thiếu Service Worker hoặc PushManager) — thông báo chỉ hoạt động khi ứng dụng đang mở.",
     "pushSubscribeFailed": "Trình duyệt không thể đăng ký dịch vụ push. Điều này xảy ra với ungoogled-chromium và các bản dựng thiếu khóa Google — Web Push ở đó là không thể, thông báo chỉ hoạt động khi ứng dụng đang mở. Bạn có thể thử lại.",
+    "wipeDataButton": "Xoá dữ liệu thiết bị",
+    "wipeDataConfirmTitle": "Xoá dữ liệu thiết bị?",
+    "wipeDataConfirmText": "Tất cả hội thoại, tệp phương tiện và khóa mã hoá của tài khoản này trên thiết bị sẽ bị xoá. Bạn sẽ cần đăng nhập lại hoặc đăng ký mới.",
+    "wipeDataAction": "Xoá",
     "version": "v0.1.0 — alpha",
     "aboutDescription": "Trình nhắn tin mã hóa E2E. Kiến trúc zero-knowledge."
   },

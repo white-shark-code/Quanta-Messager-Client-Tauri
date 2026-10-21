@@ -21,6 +21,13 @@ export interface Settings {
    * Settings (or unlock re-registers an already-enabled subscription).
    */
   pushEnabled: boolean;
+  /**
+   * Local retention sweep (days) for the encrypted dialog store. `0` means
+   * "keep forever"; server history is unaffected by local cleanup.
+   */
+  chatRetentionDays: number;
+  /** Local retention sweep (days) for the media vault. `0` = keep forever. */
+  mediaRetentionDays: number;
 }
 
 export interface SettingsState extends Settings {
@@ -40,6 +47,8 @@ const SETTINGS_KEYS = [
   "notificationsEnabled",
   "realtimeMode",
   "pushEnabled",
+  "chatRetentionDays",
+  "mediaRetentionDays",
 ] as const satisfies readonly (keyof Settings)[];
 
 const viteApiUrl = (import.meta.env as { VITE_API_URL?: unknown }).VITE_API_URL;
@@ -55,6 +64,8 @@ const defaults: Settings = {
   notificationsEnabled: true,
   realtimeMode: "ws",
   pushEnabled: false,
+  chatRetentionDays: 90,
+  mediaRetentionDays: 30,
 };
 
 const tauriStore = new LazyStore("settings.json");
@@ -94,6 +105,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // and any non-boolean persisted value falls back to `false`.
     if (typeof loaded.pushEnabled !== "boolean") {
       delete loaded.pushEnabled;
+    }
+    // Retention settings (local sweep): only finite, non-negative day
+    // counts are accepted; strings / negatives / NaN / Infinity are
+    // dropped so the defaults (90 / 30) win.
+    for (const key of ["chatRetentionDays", "mediaRetentionDays"] as const) {
+      const value = loaded[key];
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        delete loaded[key];
+      }
     }
     set({ ...defaults, ...loaded, hydrated: true });
   },

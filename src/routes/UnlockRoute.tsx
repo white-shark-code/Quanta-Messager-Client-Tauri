@@ -13,12 +13,15 @@
  */
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useDisclosure } from "@mantine/hooks";
 import {
   Alert,
   Button,
   Center,
   Checkbox,
+  Group,
   Loader,
+  Modal,
   Paper,
   PasswordInput,
   Stack,
@@ -32,6 +35,7 @@ import { hasKeystore } from "@/infra/tauriBridge";
 import { getOnboardingPending } from "@/features/auth/onboardingPending";
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { unlockWithPassphrase } from "@/features/auth/unlock";
+import { wipeDeviceData } from "@/features/settings/wipeLocalData";
 import { toUserMessage } from "@/infra/error";
 
 /**
@@ -81,6 +85,7 @@ export function UnlockRoute(): JSX.Element | null {
   const [pgpPassphrase, setPgpPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [wipeOpened, { open: wipeOpen, close: wipeClose }] = useDisclosure(false);
 
   useEffect(() => {
     if (userId === null) {
@@ -122,6 +127,27 @@ export function UnlockRoute(): JSX.Element | null {
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Wipe device data from the unlock screen: the user cannot remember
+   * the passphrase, so every local artifact (dialogs, media vault,
+   * keystore) is erased and the session starts from /login. Nothing is
+   * unlocked here, hence no RAM caches to clear.
+   */
+  async function handleWipe(): Promise<void> {
+    if (userId === null) return;
+    try {
+      await wipeDeviceData(userId);
+    } catch {
+      // best-effort
+    }
+    setPassphrase("");
+    setPgpPassphrase("");
+    setPgpDiffers(false);
+    wipeClose();
+    // Keystore is gone → the unlock screen can no longer offer unlock.
+    navigate("/login", { replace: true });
   }
 
   if (userId === null) {
@@ -189,8 +215,29 @@ export function UnlockRoute(): JSX.Element | null {
               </Button>
             </Stack>
           </form>
+          <Button variant="subtle" color="red" size="compact-sm" onClick={wipeOpen}>
+            {t("unlock.wipeDataButton")}
+          </Button>
         </Stack>
       </Paper>
+      <Modal
+        opened={wipeOpened}
+        onClose={wipeClose}
+        title={t("unlock.wipeDataConfirmTitle")}
+        centered
+      >
+        <Stack>
+          <Text size="sm">{t("unlock.wipeDataConfirmText")}</Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={wipeClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button color="red" onClick={() => void handleWipe()}>
+              {t("unlock.wipeDataAction")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Center>
   );
 }

@@ -11,7 +11,11 @@
   "unlock": {
     "title": "Unlock Quant",
     "description": "Enter your keystore passphrase to access your messages.",
-    "placeholder": "Your passphrase (leave empty if none was set)"
+    "placeholder": "Your passphrase (leave empty if none was set)",
+    "wipeDataButton": "Wipe device data",
+    "wipeDataConfirmTitle": "Wipe device data?",
+    "wipeDataConfirmText": "All local conversations, media files, and encryption keys for this account will be deleted from this device. You will need to log in again or register anew.",
+    "wipeDataAction": "Wipe"
   },
   "auth": {
     "email": "Email",
@@ -126,6 +130,13 @@
     "profile": "Profile",
     "appearance": "Appearance",
     "about": "About",
+    "storageTab": "Storage",
+    "chatRetention": "Keep conversations",
+    "mediaRetention": "Keep media",
+    "retentionForever": "Forever",
+    "retentionDays": "{{days}} days",
+    "retentionYear": "1 year",
+    "retentionNote": "Cleanup only affects this device. Server history comes back when you scroll up, and deleted media is re-downloaded when viewed. \"Forever\" disables automatic cleanup.",
     "email": "Email",
     "userId": "User ID",
     "keysTitle": "PGP keys",
@@ -147,6 +158,10 @@
     "logoutConfirmText": "You can log back in with your passphrase. Check the box below to also remove your keystore from this device.",
     "logoutConfirmTitle": "Log out?",
     "logoutEraseData": "Erase all data on this device for this user",
+    "wipeDataButton": "Wipe device data",
+    "wipeDataConfirmTitle": "Wipe device data?",
+    "wipeDataConfirmText": "All local conversations, media files, and encryption keys for this account will be deleted from this device. You will need to log in again or register anew.",
+    "wipeDataAction": "Wipe",
     "notifications": "Notifications",
     "pushTitle": "Push notifications",
     "pushDenied": "Notification permission was denied — enable it in your system/browser settings and try again.",

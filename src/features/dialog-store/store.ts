@@ -162,6 +162,104 @@ export async function listDialogs(userId: string): Promise<string[]> {
 }
 
 /**
+ * Стирает ВСЕ локальные копии диалогов пользователя (настройки
+ * «стереть данные устройства»). Файлы .qdlog удаляются, per-user
+ * индекс обнуляется. Best-effort: возвращает число удалённых
+ * диалогов; если индекс нечитаем — 0 без попыток удаления и записи
+ * индекса; прочие ошибки глотаются. Никогда не бросает.
+ */
+export async function clearDialogs(userId: string): Promise<number> {
+  let index: string[];
+  try {
+    index = await readDialogIndex(userId);
+  } catch {
+    return 0;
+  }
+  // Индекс — строка JSON от собственного writer'а, но на битом файле
+  // там может оказаться что угодно: фильтруем до непустых строк.
+  const chatIds = index.filter((id): id is string => typeof id === "string" && id.length > 0);
+  await Promise.all(
+    chatIds.map((chatId) =>
+      deleteDialogFile(userId, chatId).catch(() => {
+        // Best-effort: конкретный файл мог уже не существовать —
+        // не роняем всю пачку из-за одного сбоя.
+      }),
+    ),
+  );
+  try {
+    await writeDialogIndex(userId, []);
+  } catch {
+    // ignore — пустой индекс восстановится сам, когда появятся новые чаты
+  }
+  return chatIds.length;
+}
+
+/**
+ * Автоочистка локальной истории («retention sweep»): удаляет из
+ * `.qdlog`-файлов сообщения старше `retentionDays` дней.
+ *
+ * Контракт:
+ * - `retentionDays <= 0` (или non-finite) — no-op, `0`, индекс не читаем;
+ * - cutoff = `Date.now() - retentionDays * 86_400_000`;
+ * - сообщения с `Date.parse(creation_datetime) >= cutoff` остаются,
+ *   непарсящиеся даты ОСТАЮТСЯ (защита от потери данных);
+ * - файл переписывается только если что-то удалено; если удалено всё —
+ *   чат стирается через `deleteDialog` (файл + запись в индексе);
+ * - возвращает суммарное число удалённых сообщений.
+ *
+ * Best-effort: ошибка чтения одного чата (залоченный keystore, битый
+ * файл) пропускает этот чат; функция никогда не reject'ит.
+ */
+export async function applyDialogRetention(userId: string, retentionDays: number): Promise<number> {
+  if (!Number.isFinite(retentionDays) || retentionDays <= 0) return 0;
+  const cutoff = Date.now() - retentionDays * 86_400_000;
+  let removed = 0;
+  try {
+    const index = await readDialogIndex(userId);
+    // Индекс — строка JSON от собственного writer'а, но на битом файле
+    // там может оказаться что угодно: фильтруем до непустых строк.
+    const chatIds = index.filter((id): id is string => typeof id === "string" && id.length > 0);
+    for (const chatId of chatIds) {
+      let original: DialogMessage[];
+      try {
+        original = await readDialog(userId, chatId);
+      } catch {
+        // Залоченный keystore / битый файл — пропускаем чат.
+        continue;
+      }
+      const kept = original.filter((m) => {
+        const ts = Date.parse(m.creation_datetime);
+        return Number.isNaN(ts) || ts >= cutoff;
+      });
+      if (kept.length === original.length) continue;
+      if (kept.length === 0) {
+        // Пустой чат — целиком, вместе с записью в индексе.
+        await deleteDialog(userId, chatId);
+        removed += original.length;
+        continue;
+      }
+      const key = getKey(userId);
+      const packed = serializeDialog(kept, key);
+      await writeDialogBuffer(userId, chatId, packDialog(packed));
+      // Best-effort: держим per-user индекс в синхроне (как `appendDialog`).
+      try {
+        const indexNow = await readDialogIndex(userId);
+        if (!indexNow.includes(chatId)) {
+          await writeDialogIndex(userId, [...indexNow, chatId]);
+        }
+      } catch {
+        // ignore — следующее чтение сработает через проверку файла
+      }
+      removed += original.length - kept.length;
+    }
+    return removed;
+  } catch {
+    // Частичный результат лучше, чем reject в фоновом свипе.
+    return removed;
+  }
+}
+
+/**
  * Сидит React Query `InfiniteData`-кеш из локального файла.
  * Возвращает кеш с одной страницей всех локально известных сообщений,
  * отсортированных по возрастанию `creation_datetime` (как сервер

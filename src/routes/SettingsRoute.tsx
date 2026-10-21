@@ -5,6 +5,7 @@
  *   - Profile    — current user from `sessionStore` + logout.
  *   - Appearance — theme / language / polling / auto-lock / notifications.
  *   - About      — version banner.
+ *   - Storage    — local retention sweep (dialogs / media vault).
  *
  * Key management lives exclusively on `/setup-key` (Generate / Import /
  * Export / Share tabs). It is not surfaced here.
@@ -26,6 +27,7 @@ import {
   Paper,
   ScrollArea,
   SegmentedControl,
+  Slider,
   Stack,
   Switch,
   Tabs,
@@ -33,17 +35,21 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconLogout, IconRefresh } from "@tabler/icons-react";
+import { IconLogout, IconRefresh, IconTrashX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { useSessionStore } from "@/features/auth/sessionStore";
 import { deleteKeystoreForUser } from "@/features/keyring/generate";
 import { fingerprintOf } from "@/features/keyring/encrypt";
 import { useKeyringStore } from "@/features/keyring/keyringStore";
+import { clearBlobCache } from "@/features/media/decrypt";
+import { clearDecryptedCache } from "@/features/messages/queries";
 import { usePushToggle } from "@/features/push/usePushToggle";
 import { isPushApiAvailable } from "@/features/push/support";
 import { useSettingsStore } from "@/features/settings/settingsStore";
+import { wipeDeviceData } from "@/features/settings/wipeLocalData";
 import { useWsStatusStore } from "@/features/events/wsStatusStore";
 import { useUserPublicKey } from "@/features/users/queries";
 import { clearDebugLog, getDebugLog, getDebugLogLocation } from "@/lib/debug";
@@ -129,10 +135,25 @@ export function SettingsRoute(): JSX.Element {
   const autoLockEnabled = useSettingsStore((s) => s.autoLockEnabled);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
   const pushEnabled = useSettingsStore((s) => s.pushEnabled);
+  const chatRetentionDays = useSettingsStore((s) => s.chatRetentionDays);
+  const mediaRetentionDays = useSettingsStore((s) => s.mediaRetentionDays);
+  // Slider drafts: dragging must not persist on every tick (each `set`
+  // re-writes settings.json), so the value is committed on release and
+  // re-synced whenever the store changes from elsewhere.
+  const [chatRetentionDraft, setChatRetentionDraft] = useState(chatRetentionDays);
+  const [mediaRetentionDraft, setMediaRetentionDraft] = useState(mediaRetentionDays);
+  useEffect(() => {
+    setChatRetentionDraft(chatRetentionDays);
+  }, [chatRetentionDays]);
+  useEffect(() => {
+    setMediaRetentionDraft(mediaRetentionDays);
+  }, [mediaRetentionDays]);
   const { pending: pushPending, reason: pushReason, togglePush } = usePushToggle();
 
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
+  const [wipeOpenState, { open: wipeOpen, close: wipeClose }] = useDisclosure(false);
   const [eraseData, setEraseData] = useState(false);
+  const queryClient = useQueryClient();
 
   // Diagnostics panel state.
   const [debugContent, setDebugContent] = useState<string>("");
@@ -183,6 +204,47 @@ export function SettingsRoute(): JSX.Element {
     navigate("/login", { replace: true });
   }
 
+  /**
+   * Wipe device data (TASK: settings → profile): erase every local
+   * artifact (dialogs, media vault, keystore), drop RAM caches of
+   * already-decrypted content plus the react-query message cache, then
+   * exit the session. Best-effort: a wipe failure must not strand the
+   * user on a half-functional settings screen.
+   */
+  async function handleWipe(): Promise<void> {
+    const uid = user?.id;
+    if (uid !== undefined) {
+      try {
+        await wipeDeviceData(uid);
+      } catch {
+        // best-effort
+      }
+    }
+    clearDecryptedCache();
+    clearBlobCache();
+    queryClient.removeQueries({ queryKey: ["messages"] });
+    clearKeyring();
+    logout();
+    wipeClose();
+    navigate("/login", { replace: true });
+  }
+
+  const retentionMaxDays = 365;
+  const retentionMarks = [
+    { value: 0, label: t("settings.retentionForever") },
+    { value: 30, label: "30" },
+    { value: 90, label: "90" },
+    { value: 365, label: "365" },
+  ];
+  /** 0 → "Всегда", 365 → "1 год", everything else → "N дн.". */
+  const formatRetention = (days: number): string => {
+    if (days <= 0) return t("settings.retentionForever");
+    if (days >= retentionMaxDays) return t("settings.retentionYear");
+    return t("settings.retentionDays", { days });
+  };
+  const clampRetention = (days: number): number =>
+    Math.min(retentionMaxDays, Math.max(0, Math.round(days)));
+
   return (
     <Stack gap="md" p="md" maw={800} mx="auto">
       <Title order={2}>{t("settings.title")}</Title>
@@ -191,6 +253,7 @@ export function SettingsRoute(): JSX.Element {
           <Tabs.Tab value="profile">{t("settings.profile")}</Tabs.Tab>
           <Tabs.Tab value="appearance">{t("settings.appearance")}</Tabs.Tab>
           <Tabs.Tab value="about">{t("settings.about")}</Tabs.Tab>
+          <Tabs.Tab value="storage">{t("settings.storageTab")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="profile" pt="md">
@@ -212,6 +275,16 @@ export function SettingsRoute(): JSX.Element {
                 onClick={openConfirm}
               >
                 {t("auth.logout")}
+              </Button>
+              <Divider />
+              <Button
+                color="red"
+                variant="subtle"
+                leftSection={<IconTrashX size={16} />}
+                onClick={wipeOpen}
+                fullWidth
+              >
+                {t("settings.wipeDataButton")}
               </Button>
             </Stack>
           </Paper>
@@ -378,6 +451,50 @@ export function SettingsRoute(): JSX.Element {
             </Paper>
           </Stack>
         </Tabs.Panel>
+
+        <Tabs.Panel value="storage" pt="md">
+          <Paper withBorder p="md">
+            <Stack>
+              <Group justify="space-between">
+                <Text fw={500}>{t("settings.chatRetention")}</Text>
+                <Badge variant="light" tt="none">
+                  {formatRetention(chatRetentionDays)}
+                </Badge>
+              </Group>
+              <Slider
+                value={clampRetention(chatRetentionDraft)}
+                onChange={setChatRetentionDraft}
+                onChangeEnd={(v) => void setSetting("chatRetentionDays", v)}
+                min={0}
+                max={retentionMaxDays}
+                step={1}
+                marks={retentionMarks}
+                label={formatRetention}
+                mb="lg"
+              />
+              <Group justify="space-between">
+                <Text fw={500}>{t("settings.mediaRetention")}</Text>
+                <Badge variant="light" tt="none">
+                  {formatRetention(mediaRetentionDays)}
+                </Badge>
+              </Group>
+              <Slider
+                value={clampRetention(mediaRetentionDraft)}
+                onChange={setMediaRetentionDraft}
+                onChangeEnd={(v) => void setSetting("mediaRetentionDays", v)}
+                min={0}
+                max={retentionMaxDays}
+                step={1}
+                marks={retentionMarks}
+                label={formatRetention}
+                mb="lg"
+              />
+              <Text size="sm" c="dimmed">
+                {t("settings.retentionNote")}
+              </Text>
+            </Stack>
+          </Paper>
+        </Tabs.Panel>
       </Tabs>
 
       <Modal
@@ -399,6 +516,25 @@ export function SettingsRoute(): JSX.Element {
             </Button>
             <Button color="red" onClick={() => void handleLogout()}>
               {t("auth.logout")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={wipeOpenState}
+        onClose={wipeClose}
+        title={t("settings.wipeDataConfirmTitle")}
+        centered
+      >
+        <Stack>
+          <Text size="sm">{t("settings.wipeDataConfirmText")}</Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={wipeClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button color="red" onClick={() => void handleWipe()}>
+              {t("settings.wipeDataAction")}
             </Button>
           </Group>
         </Stack>

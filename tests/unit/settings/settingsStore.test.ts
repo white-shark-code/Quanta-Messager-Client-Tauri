@@ -165,3 +165,96 @@ describe("settings/settingsStore", () => {
     expect(storeState.data.has("pollingIntervalMs")).toBe(false);
   });
 });
+
+/**
+ * Retention sweep settings (chatRetentionDays / mediaRetentionDays) —
+ * contract not yet implemented (TDD). The keys hydrate with defaults
+ * `90` / `30`, `0` meaning «keep forever», and persisted junk (non-number,
+ * negative, non-finite) must be dropped so the default wins.
+ */
+describe("settings/settingsStore: retention settings (TDD)", () => {
+  // This suite is a sibling of the one above, so it needs its own isolation:
+  // clear the persisted double and reload the store module per test.
+  beforeEach(() => {
+    storeState.data.clear();
+    vi.resetModules();
+  });
+
+  it("exposes the retention defaults (90 / 30) before hydration", async () => {
+    const { useSettingsStore } = await import("@/features/settings/settingsStore");
+    const state = useSettingsStore.getState();
+
+    expect(state.chatRetentionDays).toBe(90);
+    expect(state.mediaRetentionDays).toBe(30);
+  });
+
+  it("hydrate() applies the retention defaults when settings.json has no such keys", async () => {
+    storeState.data.set("theme", "light");
+
+    const { useSettingsStore } = await import("@/features/settings/settingsStore");
+    await useSettingsStore.getState().hydrate();
+
+    const state = useSettingsStore.getState();
+    expect(state.chatRetentionDays).toBe(90);
+    expect(state.mediaRetentionDays).toBe(30);
+    expect(state.hydrated).toBe(true);
+  });
+
+  it("hydrate() drops junk persisted retention values (strings and negatives)", async () => {
+    storeState.data.set("chatRetentionDays", "ninety");
+    storeState.data.set("mediaRetentionDays", -5);
+
+    const { useSettingsStore } = await import("@/features/settings/settingsStore");
+    await useSettingsStore.getState().hydrate();
+
+    const state = useSettingsStore.getState();
+    expect(state.chatRetentionDays).toBe(90); // дефолт побеждает над "ninety"
+    expect(state.mediaRetentionDays).toBe(30); // дефолт побеждает над -5
+  });
+
+  it("hydrate() drops non-finite persisted retention values (NaN / Infinity)", async () => {
+    storeState.data.set("chatRetentionDays", Number.NaN);
+    storeState.data.set("mediaRetentionDays", Number.POSITIVE_INFINITY);
+
+    const { useSettingsStore } = await import("@/features/settings/settingsStore");
+    await useSettingsStore.getState().hydrate();
+
+    const state = useSettingsStore.getState();
+    expect(state.chatRetentionDays).toBe(90);
+    expect(state.mediaRetentionDays).toBe(30);
+  });
+
+  it("hydrate() loads valid persisted retention numbers as-is", async () => {
+    storeState.data.set("chatRetentionDays", 7);
+    storeState.data.set("mediaRetentionDays", 365);
+
+    const { useSettingsStore } = await import("@/features/settings/settingsStore");
+    await useSettingsStore.getState().hydrate();
+
+    const state = useSettingsStore.getState();
+    expect(state.chatRetentionDays).toBe(7);
+    expect(state.mediaRetentionDays).toBe(365);
+  });
+
+  it("set() persists retention numbers and a fresh hydrate() loads them back (0 = keep forever)", async () => {
+    const { useSettingsStore } = await import("@/features/settings/settingsStore");
+
+    await useSettingsStore.getState().set("chatRetentionDays", 0);
+    await useSettingsStore.getState().set("mediaRetentionDays", 14);
+
+    const state = useSettingsStore.getState();
+    expect(state.chatRetentionDays).toBe(0);
+    expect(state.mediaRetentionDays).toBe(14);
+    expect(storeState.data.get("chatRetentionDays")).toBe(0);
+    expect(storeState.data.get("mediaRetentionDays")).toBe(14);
+
+    // Полный round-trip через persisted store: свежая модель читает
+    // сохранённые значения, а не дефолты.
+    vi.resetModules();
+    const fresh = await import("@/features/settings/settingsStore");
+    await fresh.useSettingsStore.getState().hydrate();
+    const hydrated = fresh.useSettingsStore.getState();
+    expect(hydrated.chatRetentionDays).toBe(0);
+    expect(hydrated.mediaRetentionDays).toBe(14);
+  });
+});

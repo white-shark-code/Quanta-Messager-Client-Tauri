@@ -67,16 +67,27 @@ function notifyNewMessage(): void {
  * Handle one inbound WS frame: refresh the unread-badge list (`["events"]`),
  * the affected chat's message pages, and the chat lists (`["chats"]` prefix
  * covers `["chats", "private"]`, `["chats", "group"]` and per-chat keys).
+ * A `new_dialog_chat` frame (a peer created a dialog with the user) only
+ * refreshes the chat lists — the event counter and message pages are
+ * untouched, and no OS notification is shown (messages/unread counts have
+ * not changed yet; the new conversation simply appears in the list).
  * Every other frame type is ignored (the socket layer already `debugLog`s
  * unknown types).
  *
- * After invalidation, `new_*` frames trigger an Android-safe OS
+ * After invalidation, `new_*` message frames trigger an Android-safe OS
  * notification via `tauriBridge.notify` (isTauri-guarded,
  * plugin-notification under the hood) unless the user disabled
  * notifications or is already viewing the chat. Notify errors go to
  * `debugLog` and never break the invalidate path.
  */
 function handleInbound(queryClient: QueryClient, m: WsInbound): void {
+  if (m.type === "new_dialog_chat") {
+    const chatId = (m as { chat_id?: unknown }).chat_id;
+    if (typeof chatId === "string" && chatId.length > 0) {
+      void queryClient.invalidateQueries({ queryKey: ["chats"] });
+    }
+    return;
+  }
   if (m.type !== "new_dialog_message" && m.type !== "new_group_message") {
     return;
   }

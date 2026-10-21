@@ -12,6 +12,7 @@ export type WsInbound =
   | { type: "pong" }
   | { type: "new_dialog_message"; chat_id: string; message_id: string; sender_id: string }
   | { type: "new_group_message"; chat_id: string; message_id: string; sender_id: string }
+  | { type: "new_dialog_chat"; chat_id: string; creator_id: string }
   | { type: string; [key: string]: unknown };
 
 /** Lifecycle state of the events socket (for UI badges / polling fallback). */
@@ -145,6 +146,7 @@ export function createEventsSocket(opts: EventsSocketOptions): EventsSocket {
         return;
       case "new_dialog_message":
       case "new_group_message":
+      case "new_dialog_chat":
         opts.onMessage(parsed as WsInbound);
         return;
       default:

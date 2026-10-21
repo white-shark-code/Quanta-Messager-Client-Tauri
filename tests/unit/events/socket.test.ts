@@ -161,6 +161,23 @@ describe("events/socket", () => {
     expect(h.onMessage).toHaveBeenCalledWith(frame);
   });
 
+  it("routes new_dialog_chat frames to onMessage", () => {
+    const h = makeSocket();
+    liveSockets.push(h.sock);
+    latest().open();
+    latest().receive({ type: "connected" });
+
+    const frame = {
+      type: "new_dialog_chat",
+      chat_id: "chat-9",
+      creator_id: "u-3",
+    };
+    latest().receive(frame);
+
+    expect(h.onMessage).toHaveBeenCalledTimes(1);
+    expect(h.onMessage).toHaveBeenCalledWith(frame);
+  });
+
   it("ignores broken JSON frames without calling onMessage", () => {
     const h = makeSocket();
     liveSockets.push(h.sock);
