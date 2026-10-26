@@ -29,7 +29,8 @@
       "password": "Mật khẩu",
       "submit": "Đăng nhập",
       "noAccount": "Chưa có tài khoản?",
-      "registerLink": "Đăng ký"
+      "registerLink": "Đăng ký",
+      "pendingHint": "…hoặc yêu cầu đăng ký của bạn chưa được phê duyệt"
     },
     "register": {
       "title": "Đăng ký",
@@ -37,7 +38,19 @@
       "password": "Mật khẩu",
       "confirmPassword": "Xác nhận mật khẩu",
       "submit": "Tạo tài khoản",
-      "haveAccount": "Đã có tài khoản? Đăng nhập"
+      "submitting": "Đang tạo tài khoản…",
+      "haveAccount": "Đã có tài khoản?",
+      "loginLink": "Đăng nhập",
+      "approvalNote": "Sau khi đăng ký, quản trị viên cần phê duyệt tài khoản của bạn trước khi bạn có thể đăng nhập.",
+      "pendingTitle": "Yêu cầu đã được gửi",
+      "pendingText": "Vui lòng đợi quản trị viên phê duyệt. Sau khi được phê duyệt, hãy đăng nhập bằng tài khoản của bạn.",
+      "pendingBackToLogin": "Quay lại đăng nhập",
+      "errors": {
+        "email": "Nhập địa chỉ email hợp lệ",
+        "passwordMin": "Mật khẩu phải có ít nhất 8 ký tự",
+        "passwordsMismatch": "Mật khẩu không khớp",
+        "closed": "Việc đăng ký đã bị đóng"
+      }
     },
     "unlock": {
       "title": "Phiên đã hết hạn",
@@ -49,8 +62,6 @@
       "noIdentity": "Không tìm thấy người dùng để mở khóa: thiết bị này không có keystore. Vui lòng đăng nhập lại qua trang đăng nhập."
     },
     "errors": {
-      "passwordMin": "Mật khẩu phải có ít nhất 8 ký tự",
-      "passwordsMismatch": "Mật khẩu không khớp",
       "invalidUuid": "Định dạng UUID không hợp lệ",
       "selfChat": "Không thể tạo cuộc trò chuyện với chính mình",
       "notLoggedIn": "Chưa đăng nhập"

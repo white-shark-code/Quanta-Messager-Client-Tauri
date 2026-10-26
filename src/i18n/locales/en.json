@@ -26,7 +26,28 @@
       "password": "Password",
       "submit": "Sign in",
       "noAccount": "Don't have an account?",
-      "registerLink": "Register"
+      "registerLink": "Register",
+      "pendingHint": "…or your application has not been approved yet"
+    },
+    "register": {
+      "title": "Register",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "haveAccount": "Already registered?",
+      "loginLink": "Sign in",
+      "approvalNote": "After registration an administrator must approve your account before you can sign in.",
+      "pendingTitle": "Application received",
+      "pendingText": "Please wait for administrator approval. Once approved, sign in with your credentials.",
+      "pendingBackToLogin": "Back to sign in",
+      "errors": {
+        "email": "Enter a valid email address",
+        "passwordMin": "Password must be at least 8 characters",
+        "passwordsMismatch": "Passwords do not match",
+        "closed": "Registration is closed"
+      }
     },
     "unlock": {
       "title": "Session expired",

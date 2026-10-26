@@ -1,23 +1,18 @@
 import { apiClient } from "@/infra/apiClient";
 
-export interface PushMeta {
-  vapid_public_key: string;
-}
-
 export interface PushSubscribeResponse {
   endpoint: string;
 }
 
+// re-export so push/subscription.ts keeps working unchanged; /meta now lives in features/meta
+export { getMeta } from "@/features/meta/api";
+export type { ServerMeta as PushMeta } from "@/features/meta/api";
+
 /**
  * Backend push contract (see server/docs/notifications.md, Web Push):
- * - `GET /meta` (no auth) → `{vapid_public_key}`. An empty string means
- *   VAPID is not configured and subscribing is impossible.
  * - `POST /push/subscribe` (auth) → upsert, 201 new / 200 refreshed.
  * - `DELETE /push/unsubscribe` (auth) → idempotent, always 204.
  */
-export async function getMeta(): Promise<PushMeta> {
-  return apiClient.get<PushMeta>("/meta");
-}
 
 export async function subscribePush(
   endpoint: string,

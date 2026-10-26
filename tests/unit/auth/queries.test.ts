@@ -9,30 +9,45 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const {
   loginMock,
+  registerMock,
   meMock,
   hasKeystoreMock,
   upsertIndexEntryMock,
   setUserSpy,
   setUnlockedSpy,
+  setAccessTokenSpy,
   navigateMock,
 } = vi.hoisted(() => ({
   loginMock: vi.fn(),
+  registerMock: vi.fn(),
   meMock: vi.fn(),
   hasKeystoreMock: vi.fn(),
   upsertIndexEntryMock: vi.fn(),
   setUserSpy: vi.fn(),
   setUnlockedSpy: vi.fn(),
+  setAccessTokenSpy: vi.fn(),
   navigateMock: vi.fn(),
 }));
 
 vi.mock("@/features/auth/api", () => ({
   login: (...args: unknown[]): unknown => loginMock(...args) as unknown,
+  register: (...args: unknown[]): unknown => registerMock(...args) as unknown,
   me: (...args: unknown[]): unknown => meMock(...args) as unknown,
 }));
 
 vi.mock("@/infra/tauriBridge", () => ({
   hasKeystore: (...args: unknown[]): unknown => hasKeystoreMock(...args) as unknown,
 }));
+
+// Spy wrapper over the real accessToken module: useRegister must never
+// publish a token (registration returns no Bearer), and the spy proves it.
+vi.mock("@/features/auth/accessToken", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/auth/accessToken")>();
+  return {
+    ...actual,
+    setAccessToken: (...args: unknown[]): unknown => setAccessTokenSpy(...args) as unknown,
+  };
+});
 
 vi.mock("@/features/secure-store/store", () => ({
   upsertIndexEntry: (...args: unknown[]): unknown => upsertIndexEntryMock(...args) as unknown,
@@ -91,8 +106,9 @@ vi.mock("react-router-dom", async (importOriginal) => {
   };
 });
 
-import { useLogin } from "@/features/auth/queries";
+import { useLogin, useRegister } from "@/features/auth/queries";
 import type { MeResponse } from "@/features/auth/api";
+import type { RegistrationMode } from "@/features/meta/api";
 
 const USER_ID = "user-aaa-111";
 const USER_EMAIL = "alice@example.com";
@@ -102,8 +118,8 @@ const FAKE_ME: MeResponse = {
   email: USER_EMAIL,
 };
 
-interface ProbeHandle {
-  value: ReturnType<typeof useLogin> | null;
+interface ProbeHandle<T> {
+  value: T | null;
   container: unknown;
   root: Root;
 }
@@ -127,18 +143,18 @@ function testDocument(): TestDocument {
   return (globalThis as unknown as { document: TestDocument }).document;
 }
 
-function mountLogin(): ProbeHandle {
+function mountHook<T>(useHook: () => T): ProbeHandle<T> {
   const container = testDocument().createElement("div");
   testDocument().body.appendChild(container);
 
-  const handle: ProbeHandle = {
+  const handle: ProbeHandle<T> = {
     value: null,
     container,
     root: undefined as unknown as Root,
   };
 
   const Probe = (): null => {
-    handle.value = useLogin();
+    handle.value = useHook();
     return null;
   };
 
@@ -154,6 +170,16 @@ function mountLogin(): ProbeHandle {
   return handle;
 }
 
+function mountLogin(): ProbeHandle<ReturnType<typeof useLogin>> {
+  return mountHook(useLogin);
+}
+
+function mountRegister(
+  mode: RegistrationMode | undefined,
+): ProbeHandle<ReturnType<typeof useRegister>> {
+  return mountHook(() => useRegister(mode));
+}
+
 function flushMicrotasks(): Promise<void> {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, 0);
@@ -162,14 +188,17 @@ function flushMicrotasks(): Promise<void> {
 
 beforeEach(() => {
   loginMock.mockReset();
+  registerMock.mockReset();
   meMock.mockReset();
   hasKeystoreMock.mockReset();
   upsertIndexEntryMock.mockReset();
   setUserSpy.mockReset();
   setUnlockedSpy.mockReset();
+  setAccessTokenSpy.mockReset();
   navigateMock.mockReset();
 
   loginMock.mockResolvedValue({ access_token: "test-token", token_type: "bearer" });
+  registerMock.mockResolvedValue({ id: USER_ID, email: USER_EMAIL });
   meMock.mockResolvedValue(FAKE_ME);
   upsertIndexEntryMock.mockResolvedValue(undefined);
 
@@ -290,5 +319,99 @@ describe("auth/queries — useLogin.onSuccess (multi-user flow)", () => {
     expect(navigateMock).not.toHaveBeenCalled();
     expect(sessionState.user).toBeNull();
     expect(sessionState.isUnlocked).toBe(false);
+  });
+});
+
+describe("useRegister", () => {
+  it("mode=open: navigates to /setup-key and writes nothing else (register returns no token)", async () => {
+    const handle = mountRegister("open");
+
+    await act(async () => {
+      await handle.value!.mutateAsync({ email: USER_EMAIL, password: "correct" });
+      await flushMicrotasks();
+    });
+
+    expect(registerMock).toHaveBeenCalledTimes(1);
+    // `mutationFn: authApi.register` is invoked as fn(vars, context), so
+    // assert on the submitted request, not the exact call arguments.
+    expect(registerMock.mock.calls[0]?.[0]).toEqual({ email: USER_EMAIL, password: "correct" });
+
+    expect(navigateMock).toHaveBeenCalledTimes(1);
+    expect(navigateMock).toHaveBeenCalledWith("/setup-key");
+
+    // Registration never yields a Bearer token and must not touch the
+    // session store or the device index — only /auth/login does.
+    expect(setAccessTokenSpy).not.toHaveBeenCalled();
+    expect(setUserSpy).not.toHaveBeenCalled();
+    expect(setUnlockedSpy).not.toHaveBeenCalled();
+    expect(upsertIndexEntryMock).not.toHaveBeenCalled();
+    expect(hasKeystoreMock).not.toHaveBeenCalled();
+  });
+
+  it("mode=approval: success but NO navigation and NO token/session writes (inactive account)", async () => {
+    const handle = mountRegister("approval");
+
+    await act(async () => {
+      await handle.value!.mutateAsync({ email: USER_EMAIL, password: "correct" });
+      await flushMicrotasks();
+    });
+
+    // The account is created INACTIVE: an admin must approve it in the DB
+    // before login returns a token. The mutation itself still reports
+    // success so the caller can render a "pending approval" screen.
+    expect(registerMock).toHaveBeenCalledTimes(1);
+    expect(handle.value!.isSuccess).toBe(true);
+
+    // Navigating anywhere that needs a session (/setup-key, /unlock, login)
+    // would 400 LOGIN_BAD_CREDENTIALS and wreck the UX — stays on register.
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(setAccessTokenSpy).not.toHaveBeenCalled();
+    expect(setUserSpy).not.toHaveBeenCalled();
+    expect(setUnlockedSpy).not.toHaveBeenCalled();
+    expect(upsertIndexEntryMock).not.toHaveBeenCalled();
+    expect(hasKeystoreMock).not.toHaveBeenCalled();
+    expect(sessionState.user).toBeNull();
+    expect(sessionState.isUnlocked).toBe(false);
+  });
+
+  it("mode=undefined falls back to approval behavior: no navigation", async () => {
+    const handle = mountRegister(undefined);
+
+    await act(async () => {
+      await handle.value!.mutateAsync({ email: USER_EMAIL, password: "correct" });
+      await flushMicrotasks();
+    });
+
+    expect(registerMock).toHaveBeenCalledTimes(1);
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(setAccessTokenSpy).not.toHaveBeenCalled();
+    expect(upsertIndexEntryMock).not.toHaveBeenCalled();
+  });
+
+  it("mode=closed: no navigation (defensive — the endpoint would 403 anyway)", async () => {
+    const handle = mountRegister("closed");
+
+    await act(async () => {
+      await handle.value!.mutateAsync({ email: USER_EMAIL, password: "correct" });
+      await flushMicrotasks();
+    });
+
+    expect(registerMock).toHaveBeenCalledTimes(1);
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(setAccessTokenSpy).not.toHaveBeenCalled();
+  });
+
+  it("garbage mode string falls back to approval behavior: no navigation", async () => {
+    const handle = mountRegister("whatever" as unknown as RegistrationMode);
+
+    await act(async () => {
+      await handle.value!.mutateAsync({ email: USER_EMAIL, password: "correct" });
+      await flushMicrotasks();
+    });
+
+    expect(registerMock).toHaveBeenCalledTimes(1);
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(setAccessTokenSpy).not.toHaveBeenCalled();
+    expect(upsertIndexEntryMock).not.toHaveBeenCalled();
   });
 });

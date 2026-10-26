@@ -3,6 +3,11 @@ import { useNavigate } from "react-router-dom";
 
 import { hasKeystore } from "@/infra/tauriBridge";
 import { upsertIndexEntry } from "@/features/secure-store/store";
+import {
+  resolveRegistrationMode,
+  type RegistrationMode,
+  type ServerMeta,
+} from "@/features/meta/api";
 
 import * as authApi from "./api";
 import { getOnboardingPending } from "./onboardingPending";
@@ -71,12 +76,37 @@ export function useLogin() {
   });
 }
 
-export function useRegister() {
+export function useRegister(mode: RegistrationMode | undefined) {
   const navigate = useNavigate();
   return useMutation({
     mutationFn: authApi.register,
     onSuccess: () => {
-      navigate("/setup-key");
+      // Re-derive the effective mode from the raw value:
+      // resolveRegistrationMode falls back to "approval" (the server
+      // default) for undefined and for anything outside the three known
+      // exact strings.
+      const resolvedMode = resolveRegistrationMode(
+        mode === undefined
+          ? undefined
+          : ({ vapid_public_key: "", registration_mode: mode } satisfies ServerMeta),
+      );
+
+      if (resolvedMode === "open") {
+        // "open": the user is active immediately — legacy behavior.
+        navigate("/setup-key");
+        return;
+      }
+
+      // "approval": the 201 response created the account INACTIVE — an
+      // admin must approve it in the DB first, and until then any login
+      // attempt returns 400 LOGIN_BAD_CREDENTIALS. Deliberately do
+      // nothing: no navigation to session-gated routes (/setup-key,
+      // login, /unlock) and no token / session-store / index writes.
+      // The caller stays on the register page and renders its "pending
+      // approval" screen while `mutation.isSuccess && mode === "approval"`.
+      //
+      // "closed": the form is hidden in closed mode and the endpoint
+      // would 403 anyway — a defensive no-op.
     },
   });
 }
