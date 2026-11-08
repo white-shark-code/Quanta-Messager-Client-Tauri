@@ -4,6 +4,9 @@
  * Pure check functions used by UI forms (SetupKey, ImportKey, ChangePublicKey)
  * to give immediate feedback before hitting the full PGP pipeline.
  *
+ * The module also owns the armor-block splitter the import forms use to
+ * pick the private/public key out of a pasted blob.
+ *
  * The implementations intentionally **don't** keep the parsed key around —
  * callers re-parse via `importPublicKey` / `importPrivateKey` to obtain a
  * reusable `Key` object. That avoids surprise allocations and lets the
@@ -11,6 +14,16 @@
  */
 
 import * as openpgp from "openpgp";
+
+/**
+ * Armor headers of the two key blocks we care about. The patterns are
+ * deliberately NOT global (`g`) — `exec` would then carry `lastIndex`
+ * between calls and return alternating results.
+ */
+const PRIVATE_BLOCK_PATTERN =
+  /-----BEGIN PGP PRIVATE KEY BLOCK-----[\s\S]*?-----END PGP PRIVATE KEY BLOCK-----/;
+const PUBLIC_BLOCK_PATTERN =
+  /-----BEGIN PGP PUBLIC KEY BLOCK-----[\s\S]*?-----END PGP PUBLIC KEY BLOCK-----/;
 
 /**
  * Cheap synchronous check that an armored string looks like a valid PGP
@@ -93,4 +106,38 @@ export async function isValidArmoredPrivateKey(
   } catch {
     return false;
   }
+}
+
+/**
+ * Split a pasted blob into its armored private and public key blocks.
+ *
+ * The import forms accept whatever the user copied: the Share tab hands
+ * out *just* the private key, `gpg --armor --export` writes the public
+ * block first and the private one after it, and users often paste both
+ * blocks surrounded by some chat noise. Splitting on a fixed marker
+ * (and on the wrong marker at that) silently produced garbage, so both
+ * blocks are extracted independently by their real armor headers — the
+ * order in the paste does not matter.
+ *
+ * Each part is returned **as matched** (no trimming): an empty string
+ * means "this block was not in the paste", and the callers trim before
+ * they parse.
+ *
+ * @param input Raw pasted text.
+ * @returns The armored private and public key blocks — each `""` when
+ *   the paste did not contain it.
+ */
+export function splitArmoredPaste(input: string): {
+  privatePart: string;
+  publicPart: string;
+} {
+  if (typeof input !== "string" || input.length === 0) {
+    return { privatePart: "", publicPart: "" };
+  }
+  const privateMatch = PRIVATE_BLOCK_PATTERN.exec(input);
+  const publicMatch = PUBLIC_BLOCK_PATTERN.exec(input);
+  return {
+    privatePart: privateMatch?.[0] ?? "",
+    publicPart: publicMatch?.[0] ?? "",
+  };
 }

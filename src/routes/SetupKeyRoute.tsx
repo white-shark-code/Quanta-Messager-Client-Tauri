@@ -45,7 +45,7 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
+  Textarea,
   Title,
 } from "@mantine/core";
 import { IconCheck, IconCopy, IconDownload, IconEye, IconShieldLock } from "@tabler/icons-react";
@@ -60,10 +60,11 @@ import {
   prepareImportedPair,
   type PreparedKeyMaterial,
 } from "@/features/keyring/generate";
+import { splitArmoredPaste } from "@/features/keyring/armor";
 import type { KeyAlgorithm } from "@/features/keyring/types";
 import { changePublicKey } from "@/features/auth/api";
 import { readKeystore } from "@/features/secure-store/store";
-import { pickSaveFile, writeFileBuffer } from "@/infra/tauriBridge";
+import { saveOrDownloadFile } from "@/infra/tauriBridge";
 import { toUserMessage } from "@/infra/error";
 import { debugLog, getDebugLogLocation } from "@/lib/debug";
 
@@ -192,11 +193,11 @@ export function SetupKeyRoute(): JSX.Element {
     }
     setBusy(true);
     try {
-      const splitMarker = "-----BEGIN PGP PUBLIC KEY-----";
-      const privatePart = armored.split(splitMarker)[0] ?? armored;
-      const publicPart = armored.includes(splitMarker)
-        ? `${splitMarker}${armored.split(splitMarker)[1] ?? ""}`
-        : "";
+      // The paste may carry the private block, the public block or both
+      // — in any order. `splitArmoredPaste` picks them out by their real
+      // armor headers; a missing public block is fine (the public key is
+      // derived from the private one).
+      const { privatePart, publicPart } = splitArmoredPaste(armored);
       let prepared = pendingImport;
       if (prepared === null) {
         markOnboardingPending(user.id, user.email);
@@ -270,12 +271,12 @@ export function SetupKeyRoute(): JSX.Element {
     setDebugDetails("");
     setSuccess(null);
     try {
-      const path = await pickSaveFile({
-        defaultPath: "private-key.asc",
+      const path = await saveOrDownloadFile({
+        defaultName: "private-key.asc",
         filters: [{ name: "ASCII-armored", extensions: ["asc", "txt"] }],
+        data: new TextEncoder().encode(privateKeyArmored),
       });
       if (path === null) return;
-      await writeFileBuffer(path, new TextEncoder().encode(privateKeyArmored));
       setSuccess(t("setupKey.export.savedTo", { path }));
     } catch (e) {
       void debugLog("Download", e);
@@ -361,11 +362,18 @@ export function SetupKeyRoute(): JSX.Element {
         <Tabs.Panel value="import" pt="md">
           <Stack>
             <Text size="sm">{t("setupKey.import.description")}</Text>
-            <TextInput
+            {/* A plain single-line `<input>` drops the newlines of a
+                pasted ASCII-armored block (the browser collapses them
+                into spaces), which breaks the armor — hence a
+                textarea. */}
+            <Textarea
               label={t("setupKey.import.armoredLabel")}
               value={armored}
               onChange={(e) => setArmored(e.currentTarget.value)}
               placeholder={t("setupKey.import.armoredPlaceholder")}
+              autosize
+              minRows={6}
+              maxRows={12}
             />
             <PasswordInput
               label={t("setupKey.passphraseImportLabel")}

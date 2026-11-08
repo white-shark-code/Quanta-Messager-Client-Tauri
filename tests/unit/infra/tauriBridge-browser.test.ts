@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock, MockInstance } from "vitest";
 
 import {
   ensureNotificationPermission,
@@ -13,6 +14,7 @@ import {
   pickFiles,
   pickSaveFile,
   readKeystoreBuffer,
+  saveOrDownloadFile,
   writeFileBuffer,
   writeKeystoreBuffer,
 } from "@/infra/tauriBridge";
@@ -148,6 +150,154 @@ describe("tauriBridge — browser fallback (functions that throw)", () => {
 
   it("getAppDataDir() throws in browser mode (Tauri-only command)", async () => {
     await expect(getAppDataDir()).rejects.toThrow(/App data dir only available in Tauri runtime/);
+  });
+});
+
+/**
+ * Snapshot of the anchor that was clicked, captured *inside* the click
+ * spy. The implementation removes the anchor right after clicking it,
+ * so the DOM state can only be observed at click time.
+ */
+interface AnchorClickSnapshot {
+  download: string | null;
+  href: string | null;
+  attachedToBody: boolean;
+}
+
+/**
+ * `saveOrDownloadFile()` is the browser-safe counterpart of the
+ * `pickSaveFile()` + `writeFileBuffer()` pair: in a plain browser
+ * (no Tauri runtime) there is no native save dialog and no
+ * filesystem, so the file is handed to the browser's own download
+ * machinery via a blob URL and a synthetic `<a download>` anchor.
+ *
+ * In the Tauri runtime the very same call opens the native save
+ * dialog and writes the bytes to disk.
+ */
+describe("tauriBridge — saveOrDownloadFile (browser fallback)", () => {
+  const BLOB_URL = "blob:quant-tauri-bridge-test";
+  const DEFAULT_NAME = "private-key.asc";
+
+  let createObjectURL: Mock<(obj: Blob) => string>;
+  let revokeObjectURL: Mock<(url: string) => void>;
+  let clickSpy: MockInstance<() => void>;
+  let clicks: AnchorClickSnapshot[];
+
+  beforeEach(() => {
+    // Fake timers: the implementation is allowed to defer the object
+    // URL revocation (a `setTimeout`) so the browser has time to
+    // actually start the download. Fake timers let `vi.waitFor` flush
+    // that timer deterministically and guarantee that no timer
+    // survives the test — a late revocation would otherwise hit the
+    // already-removed stub and blow up as an unhandled error.
+    vi.useFakeTimers();
+
+    createObjectURL = vi.fn<(obj: Blob) => string>().mockReturnValue(BLOB_URL);
+    revokeObjectURL = vi.fn<(url: string) => void>();
+
+    // jsdom implements neither `URL.createObjectURL` nor
+    // `URL.revokeObjectURL` — stub both on the global constructor.
+    Object.defineProperty(URL, "createObjectURL", {
+      value: createObjectURL,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      value: revokeObjectURL,
+      configurable: true,
+      writable: true,
+    });
+
+    clicks = [];
+    clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicks.push({
+        download: this.getAttribute("download"),
+        href: this.getAttribute("href"),
+        attachedToBody: document.body.contains(this),
+      });
+    });
+  });
+
+  afterEach(() => {
+    clickSpy.mockRestore();
+    Reflect.deleteProperty(URL, "createObjectURL");
+    Reflect.deleteProperty(URL, "revokeObjectURL");
+    vi.useRealTimers();
+  });
+
+  it("exports saveOrDownloadFile from the tauri bridge", () => {
+    expect(typeof saveOrDownloadFile).toBe("function");
+  });
+
+  it("resolves to the default file name instead of throwing in browser mode", async () => {
+    const result = await saveOrDownloadFile({
+      defaultName: DEFAULT_NAME,
+      data: new Uint8Array([1, 2, 3, 4]),
+    });
+
+    expect(result).toBe(DEFAULT_NAME);
+  });
+
+  it("ignores the (Tauri-only) filters option in browser mode", async () => {
+    const result = await saveOrDownloadFile({
+      defaultName: DEFAULT_NAME,
+      filters: [{ name: "ASCII-armored", extensions: ["asc", "txt"] }],
+      data: new Uint8Array([1]),
+    });
+
+    expect(result).toBe(DEFAULT_NAME);
+  });
+
+  it("creates exactly one object URL and revokes it afterwards", async () => {
+    await saveOrDownloadFile({
+      defaultName: DEFAULT_NAME,
+      data: new Uint8Array([1]),
+    });
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    // The revocation may be deferred (`setTimeout`) so the browser can
+    // start the download — wait for it instead of asserting a
+    // synchronous call.
+    await vi.waitFor(
+      () => {
+        expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 10_000 },
+    );
+    expect(revokeObjectURL).toHaveBeenCalledWith(BLOB_URL);
+  });
+
+  it("clicks exactly one download anchor carrying the default name and the blob URL", async () => {
+    await saveOrDownloadFile({
+      defaultName: DEFAULT_NAME,
+      data: new Uint8Array([1]),
+    });
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(clicks).toHaveLength(1);
+
+    const click = clicks[0];
+    expect(click?.download).toBe(DEFAULT_NAME);
+    expect(click?.href).toBe(BLOB_URL);
+    // The anchor must be in the document when it is clicked, otherwise
+    // the browser ignores the download.
+    expect(click?.attachedToBody).toBe(true);
+  });
+
+  it("hands the exact bytes to the object URL", async () => {
+    const data = new Uint8Array([0, 1, 2, 253, 254, 255]);
+
+    await saveOrDownloadFile({
+      defaultName: DEFAULT_NAME,
+      data,
+    });
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob?.size).toBe(data.length);
   });
 });
 

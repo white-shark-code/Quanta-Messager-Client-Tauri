@@ -25,6 +25,8 @@
  *     we read it from `queries.getAccessToken()` while it's still hot.
  */
 
+import type * as openpgp from "openpgp";
+
 import {
   readKeystore,
   writeKeystore,
@@ -35,10 +37,9 @@ import {
 import type { KeystorePayload } from "@/features/secure-store/types";
 import { getAccessToken } from "@/features/auth/queries";
 import { useSessionStore } from "@/features/auth/sessionStore";
-import { pickSaveFile, writeFileBuffer } from "@/infra/tauriBridge";
+import { saveOrDownloadFile } from "@/infra/tauriBridge";
 
 import * as keyring from "./encrypt";
-import { isValidArmoredPrivateKey } from "./armor";
 import { useKeyringStore } from "./keyringStore";
 import type { KeyAlgorithm, KeyPair } from "./types";
 
@@ -123,6 +124,25 @@ export async function prepareGeneratedPair(
  * Phase A (import): validate an existing ASCII-armored private key
  * purely in memory.
  *
+ * The private key block is the only mandatory input: the Share tab
+ * reveals *just* the private key, so pasting that alone has to work.
+ * When no public key block comes with it, the public key is derived
+ * from the parsed private key (v4/v6 keys carry the public component
+ * inside the private block) — that keeps the fingerprint of the pair
+ * consistent with the key the user actually pasted.
+ *
+ * A pasted public block is used verbatim (it may carry extra
+ * user IDs / signatures the local key does not have) — unless the key
+ * turned out to be broken, see below.
+ *
+ * Keys minted by an old buggy build carry an INVALID self-signature
+ * ("Signed digest did not match"). openpgp finds no valid primary user
+ * for them and every consumer rejects the key — the backend imports
+ * the uploaded public key with GnuPG, which refuses it with "new key
+ * but contains no user ID". Such a key is repaired on the fly: it is
+ * re-certified with its own material, which keeps the fingerprint (the
+ * identity) and yields clean signatures.
+ *
  * Fails fast on invalid armor / wrong passphrase before anything is
  * uploaded or written. Like the generate path, the returned `prepared`
  * value survives an upload failure and can be retried verbatim.
@@ -134,15 +154,39 @@ export async function prepareImportedPair(
 ): Promise<PreparedKeyMaterial> {
   requireOnboardingSession("prepareImportedPair");
 
-  const valid = await isValidArmoredPrivateKey(armoredPrivate, passphrase);
-  if (!valid) {
-    throw new Error("Invalid private key or wrong passphrase");
+  // `importPrivateKey` parses the armor AND unlocks the key, so a
+  // broken block or a wrong passphrase surfaces here as a descriptive
+  // error — before anything is uploaded or written.
+  const armoredPrivateTrimmed = armoredPrivate.trim();
+  const key = await keyring.importPrivateKey(armoredPrivateTrimmed, passphrase);
+
+  // `getPrimaryUser()` throws when the key carries no valid
+  // self-certification — that is exactly the "broken key" case.
+  let publicKey: openpgp.Key = key.toPublic();
+  let broken = false;
+  try {
+    await publicKey.getPrimaryUser();
+  } catch {
+    broken = true;
   }
 
-  const fingerprint = await keyring.fingerprintOf(armoredPublic);
+  let privateKeyArmored = armoredPrivateTrimmed;
+  if (broken) {
+    const repaired = await keyring.repairSelfSignatures(key, passphrase);
+    privateKeyArmored = repaired.privateKeyArmored.trim();
+    publicKey = await keyring.importPublicKey(repaired.publicKeyArmored);
+  }
+
+  // A pasted public block is used verbatim — UNLESS the key was
+  // repaired: a pasted block of a broken key carries the very same
+  // broken signature, so the re-certified one has to win.
+  const hasPublicBlock = armoredPublic.includes("-----BEGIN PGP PUBLIC KEY BLOCK-----");
+  const publicKeyArmored = hasPublicBlock && !broken ? armoredPublic.trim() : publicKey.armor();
+  const fingerprint = publicKey.getFingerprint().toUpperCase();
+
   return {
-    publicKeyArmored: armoredPublic,
-    privateKeyArmored: armoredPrivate,
+    publicKeyArmored,
+    privateKeyArmored,
     fingerprint,
     dialogKey: generateDialogKeyB64(),
     pgpPassphrase: passphrase,
@@ -286,17 +330,21 @@ export async function importAndStoreKey(
  * Export the current keystore as a user-chosen `.qks.json` file.
  *
  * Reads the existing keystore with `passphrase` to verify the user can
- * unlock it, then prompts for a save location and writes the unencrypted
- * `KeystorePayload` as JSON. The exported file is **not** re-encrypted
- * — it contains the access token and the private key, so it must only
- * be moved to a trusted location (USB, encrypted backup volume, etc.).
+ * unlock it, then writes the unencrypted `KeystorePayload` as JSON.
+ * The exported file is **not** re-encrypted — it contains the access
+ * token and the private key, so it must only be moved to a trusted
+ * location (USB, encrypted backup volume, etc.).
  *
  * `userId` is required to locate the per-user keystore on disk — this
  * is a multi-user device from now on, so a single keystore path no
  * longer exists.
  *
- * @returns Absolute path of the written file, or `null` if the user
- *          cancelled the save dialog.
+ * The actual write goes through `saveOrDownloadFile`, so the export
+ * works in the desktop app (native "save as" dialog) as well as in a
+ * plain browser (the browser's own download machinery).
+ *
+ * @returns Absolute path of the written file (desktop), the file name
+ *          (browser), or `null` if the user cancelled the save dialog.
  */
 export async function exportKeystoreToFile(
   userId: string,
@@ -304,15 +352,11 @@ export async function exportKeystoreToFile(
 ): Promise<string | null> {
   const payload = await readKeystore(userId, passphrase);
   const json = JSON.stringify(payload, null, 2);
-  const path = await pickSaveFile({
-    defaultPath: "keystore.qks.json",
+  return saveOrDownloadFile({
+    defaultName: "keystore.qks.json",
     filters: [{ name: "Keystore", extensions: ["qks", "json"] }],
+    data: new TextEncoder().encode(json),
   });
-  if (path === null) {
-    return null;
-  }
-  await writeFileBuffer(path, new TextEncoder().encode(json));
-  return path;
 }
 
 /**

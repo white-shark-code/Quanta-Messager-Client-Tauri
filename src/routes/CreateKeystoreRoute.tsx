@@ -73,6 +73,7 @@ import {
   prepareImportedPair,
   type PreparedKeyMaterial,
 } from "@/features/keyring/generate";
+import { splitArmoredPaste } from "@/features/keyring/armor";
 import { changePublicKey } from "@/features/auth/api";
 import { debugLog } from "@/lib/debug";
 import { toUserMessage } from "@/infra/error";
@@ -201,15 +202,11 @@ export function CreateKeystoreRoute(): JSX.Element {
     if (importPassphrase.length === 0) {
       return t("createKeystore.errors.importPassphraseRequired");
     }
-    // The private block usually embeds the public component, so try
-    // splitting on the public block marker; fall back to an empty
-    // public block if missing (keyring fingerprinting will surface a
-    // useful error if the armored string is truly malformed).
-    const splitMarker = "-----BEGIN PGP PUBLIC KEY BLOCK-----";
-    const privatePart = armoredPrivate.split(splitMarker)[0] ?? armoredPrivate;
-    const publicPart = armoredPrivate.includes(splitMarker)
-      ? `${splitMarker}${armoredPrivate.split(splitMarker)[1] ?? ""}`
-      : "";
+    // The paste may carry the private block, the public block or both —
+    // in any order. `splitArmoredPaste` picks them out by their real
+    // armor headers; a missing public block is fine (the public key is
+    // derived from the private one).
+    const { privatePart, publicPart } = splitArmoredPaste(armoredPrivate);
     let prepared = pendingImport;
     if (prepared === null) {
       markOnboardingPending(u.id, u.email);

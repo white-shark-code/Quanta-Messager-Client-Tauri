@@ -58,6 +58,13 @@ export async function init(): Promise<void> {
   // output (smaller blobs, no version disclosure).
   openpgp.config.showVersion = false;
 
+  // Salted-v4-notation signatures are a draft artifact of the v6 key
+  // generation path. GnuPG >= 2.4 tolerates them, but older GnuPG and
+  // the pgpy 0.6 backend may not — the same reason we pin the classic
+  // hash/symmetric algorithms below. Keep the signature format boring:
+  // plain v4 self-signatures.
+  openpgp.config.nonDeterministicSignaturesViaNotation = false;
+
   // Best-effort: keep the historic `indentationLength` knob alive via
   // Reflect.set so this stays type-safe (no `any` cast) even though the
   // v6 `Config` interface doesn't declare it.
@@ -214,6 +221,80 @@ export async function importPrivateKey(
 export async function fingerprintOf(publicKeyArmored: string): Promise<string> {
   const key = await importPublicKey(publicKeyArmored);
   return key.getFingerprint().toUpperCase();
+}
+
+/**
+ * Re-certify a key whose self-signature is broken.
+ *
+ * Keys minted by an old buggy build carry a User ID packet that no
+ * longer matches the self-signature over it — openpgp reports
+ * `Could not find valid self-signature in key <fp>: Signed digest did
+ * not match` and then finds no valid primary user at all. Every
+ * consumer rejects such a key: the backend imports the uploaded public
+ * key with GnuPG, which reports "new key but contains no user ID".
+ *
+ * `openpgp.reformatKey` re-signs the key with its **own** key material
+ * and the User IDs the key already carries. The key material (and
+ * therefore the fingerprint — the identity) stays exactly the same;
+ * only the self-signature is renewed.
+ *
+ * @param unlockedKey The private key, already unlocked.
+ * @param passphrase Passphrase for the re-encrypted private key (an
+ *   empty string leaves it unencrypted — same semantics as key
+ *   generation).
+ * @returns The re-certified armored private and public keys.
+ */
+export async function repairSelfSignatures(
+  unlockedKey: openpgp.PrivateKey,
+  passphrase: string,
+): Promise<{ privateKeyArmored: string; publicKeyArmored: string }> {
+  await init();
+
+  // Re-certify with the identity the key already carries — reformatKey
+  // cannot invent a User ID.
+  const userIDs: openpgp.UserID[] = unlockedKey.users
+    .filter((user) => user.userID !== null)
+    .map((user) => {
+      const packet = user.userID;
+      return {
+        name: packet?.name ?? "",
+        email: packet?.email ?? "",
+        ...(packet?.comment ? { comment: packet.comment } : {}),
+      };
+    });
+  if (userIDs.length === 0) {
+    throw new Error("repairSelfSignatures: the key carries no user ID to re-certify");
+  }
+
+  let repaired: { privateKey: string; publicKey: string };
+  try {
+    repaired = await openpgp.reformatKey({
+      privateKey: unlockedKey,
+      userIDs,
+      passphrase,
+      format: "armored",
+    });
+  } catch (e) {
+    throw new Error(`openpgp.reformatKey failed: ${errMsg(e)}`, { cause: e });
+  }
+
+  // SAFETY: a repair must never change the identity of the key — the
+  // fingerprint has to stay exactly the same. Bail out loudly instead
+  // of handing a "repaired" key with a different identity to the user.
+  let reparsed: openpgp.Key;
+  try {
+    reparsed = await openpgp.readKey({ armoredKey: repaired.publicKey });
+  } catch (e) {
+    throw new Error(`openpgp.readKey (repair check) failed: ${errMsg(e)}`, { cause: e });
+  }
+  if (reparsed.getFingerprint() !== unlockedKey.getFingerprint()) {
+    throw new Error("repairSelfSignatures: the fingerprint changed during the repair");
+  }
+
+  return {
+    privateKeyArmored: repaired.privateKey,
+    publicKeyArmored: repaired.publicKey,
+  };
 }
 
 /**

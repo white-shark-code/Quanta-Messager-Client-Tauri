@@ -10,8 +10,11 @@ import {
   generateKeyPair,
   importPrivateKey,
   importPublicKey,
+  repairSelfSignatures,
 } from "@/features/keyring/encrypt";
 import type { KeyPair } from "@/features/keyring/types";
+
+import { corruptUserIdPacket } from "./brokenKeyFixture";
 
 const PASSPHRASE = "test-passphrase-correct-horse-battery-staple";
 
@@ -172,4 +175,39 @@ describe("keyring/encrypt", () => {
     expect(result.text).toBe(plaintext);
     expect(result.verified).toBe(true);
   });
+});
+
+/**
+ * `repairSelfSignatures()` re-certifies a key whose self-signature is
+ * broken (keys minted by an old buggy build). The key material stays
+ * the same, so the fingerprint — the identity — must not change.
+ */
+describe("keyring/encrypt — repairSelfSignatures", () => {
+  const PASSPHRASE = "repair-test-passphrase";
+
+  it("re-certifies a broken key without changing its fingerprint", async () => {
+    const generated = await generateKeyPair(
+      { name: "Repair Fixture", email: "repair-fixture@test.local" },
+      PASSPHRASE,
+      "ecc",
+    );
+    const brokenArmored = corruptUserIdPacket(generated.privateKeyArmored);
+
+    // Sanity: the broken key parses and unlocks, but its self-signature
+    // does not verify.
+    const broken = await importPrivateKey(brokenArmored, PASSPHRASE);
+    expect(broken.getFingerprint().toUpperCase()).toBe(generated.fingerprint);
+    await expect(broken.toPublic().getPrimaryUser()).rejects.toThrow(/Signed digest did not match/);
+
+    const repaired = await repairSelfSignatures(broken, PASSPHRASE);
+
+    // The repaired public key carries a valid self-signature …
+    const repairedPublic = await importPublicKey(repaired.publicKeyArmored);
+    await expect(repairedPublic.getPrimaryUser()).resolves.toBeDefined();
+    // … the fingerprint is untouched …
+    expect(repairedPublic.getFingerprint().toUpperCase()).toBe(generated.fingerprint);
+    // … and the repaired private key still unlocks with the passphrase.
+    const unlocked = await importPrivateKey(repaired.privateKeyArmored, PASSPHRASE);
+    expect(unlocked.getFingerprint().toUpperCase()).toBe(generated.fingerprint);
+  }, 30_000);
 });

@@ -623,6 +623,72 @@ export async function pickSaveFile(options: {
   });
 }
 
+/**
+ * Write a byte buffer to disk — or hand it to the browser's own
+ * download machinery when there is no Tauri runtime.
+ *
+ * This is the browser-safe replacement for the
+ * {@link pickSaveFile} + {@link writeFileBuffer} pair used by the
+ * export flows (keystore backup, ASCII-armored private key). Those
+ * two calls are desktop-only: a plain browser has neither a native
+ * save dialog nor a filesystem path to write to, so they throw
+ * "File picker not available in browser mode".
+ *
+ * **Tauri runtime:** opens the native "save as" dialog and writes the
+ * bytes to the selected path.
+ *
+ * **Browser:** wraps the bytes in a `Blob`, turns it into an object
+ * URL and clicks a synthetic `<a download>` anchor so the browser
+ * saves the file through its regular download UI. The object URL is
+ * revoked on the next tick — revoking it synchronously can abort the
+ * download before the browser started reading the blob.
+ *
+ * @param options.defaultName Suggested file name — the dialog default
+ *   in Tauri, the `download` attribute in the browser.
+ * @param options.filters Optional file-type filters for the native
+ *   dialog (ignored in browser mode, which has no dialog).
+ * @param options.data Raw bytes to write.
+ * @returns Absolute path of the written file (Tauri), the file name
+ *   (browser — there is no path there), or `null` if the user
+ *   cancelled the save dialog.
+ */
+export async function saveOrDownloadFile(options: {
+  defaultName: string;
+  filters?: { name: string; extensions: string[] }[];
+  data: Uint8Array;
+}): Promise<string | null> {
+  if (!isTauri()) {
+    // `BlobPart` wants an `ArrayBuffer`-backed view while a plain
+    // `Uint8Array` is `ArrayBufferLike`-backed — copy the bytes into a
+    // fresh buffer first (same pattern as `features/media/decrypt.ts`).
+    const copy: Uint8Array<ArrayBuffer> = new Uint8Array(options.data.length);
+    copy.set(options.data);
+    const blob = new Blob([copy.buffer]);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = options.defaultName;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+    return options.defaultName;
+  }
+
+  const path = await saveDialog({
+    defaultPath: options.defaultName,
+    ...(options.filters !== undefined ? { filters: options.filters } : {}),
+  });
+  if (path === null) {
+    return null;
+  }
+  await writeFile(path, options.data);
+  return path;
+}
+
 /* ------------------------------------------------------------------ *
  * Notifications
  * ------------------------------------------------------------------ */

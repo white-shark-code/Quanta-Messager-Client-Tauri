@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { isValidArmoredPrivateKey, isValidArmoredPublicKey } from "@/features/keyring/armor";
+import {
+  isValidArmoredPrivateKey,
+  isValidArmoredPublicKey,
+  splitArmoredPaste,
+} from "@/features/keyring/armor";
 import { generateKeyPair } from "@/features/keyring/encrypt";
 import type { KeyPair } from "@/features/keyring/types";
 
@@ -67,6 +71,74 @@ describe("keyring/armor", () => {
           PASSPHRASE,
         ),
       ).toBe(false);
+    });
+  });
+
+  describe("splitArmoredPaste", () => {
+    it("extracts the private block from a private-only paste", () => {
+      const result = splitArmoredPaste(pair.privateKeyArmored);
+
+      expect(result.privatePart).toBe(pair.privateKeyArmored.trim());
+      expect(result.publicPart).toBe("");
+    });
+
+    it("extracts both blocks from a private-then-public paste", () => {
+      const paste = `${pair.privateKeyArmored}\n${pair.publicKeyArmored}`;
+
+      const result = splitArmoredPaste(paste);
+
+      expect(result.privatePart).toBe(pair.privateKeyArmored.trim());
+      expect(result.publicPart).toBe(pair.publicKeyArmored.trim());
+    });
+
+    it("extracts both blocks from a public-then-private paste (order-independent)", () => {
+      const paste = `${pair.publicKeyArmored}\n${pair.privateKeyArmored}`;
+
+      const result = splitArmoredPaste(paste);
+
+      expect(result.privatePart).toBe(pair.privateKeyArmored.trim());
+      expect(result.publicPart).toBe(pair.publicKeyArmored.trim());
+    });
+
+    it("extracts the public block from a public-only paste", () => {
+      const result = splitArmoredPaste(pair.publicKeyArmored);
+
+      expect(result.privatePart).toBe("");
+      expect(result.publicPart).toBe(pair.publicKeyArmored.trim());
+    });
+
+    it("ignores surrounding whitespace and junk text around the blocks", () => {
+      const paste = [
+        "  ",
+        "here is my key, hope it helps",
+        pair.publicKeyArmored,
+        "",
+        "and the secret one:",
+        pair.privateKeyArmored,
+        "   ",
+      ].join("\n");
+
+      const result = splitArmoredPaste(paste);
+
+      expect(result.privatePart).toBe(pair.privateKeyArmored.trim());
+      expect(result.publicPart).toBe(pair.publicKeyArmored.trim());
+    });
+
+    it("returns empty parts for input without any key block", () => {
+      expect(splitArmoredPaste("garbage")).toEqual({ privatePart: "", publicPart: "" });
+      expect(splitArmoredPaste("")).toEqual({ privatePart: "", publicPart: "" });
+      expect(splitArmoredPaste("   \n  ")).toEqual({ privatePart: "", publicPart: "" });
+    });
+
+    it("does not mistake a PGP MESSAGE block for a key block", () => {
+      const message = [
+        "-----BEGIN PGP MESSAGE-----",
+        "",
+        "wwm0BLG0QGNmZHNlLmV4YW1wbGUgY2hpbGRz",
+        "-----END PGP MESSAGE-----",
+      ].join("\n");
+
+      expect(splitArmoredPaste(message)).toEqual({ privatePart: "", publicPart: "" });
     });
   });
 });
